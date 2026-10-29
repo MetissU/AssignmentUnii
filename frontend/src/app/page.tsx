@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import FilterForm from '@/components/FilterForm';
+import SummaryCards from '@/components/SummaryCards';
 import SummaryTable from '@/components/SummaryTable';
 import { fetchCategories, fetchSummary } from '@/lib/api';
 import { CategoryOption, EMPTY_FILTERS, Filters, SummaryResponse } from '@/lib/types';
 
-// หน้าเดียวของระบบ: ฟอร์ม filter + ตารางสรุป
+// หน้าเดียวของระบบ: ฟอร์ม filter + การ์ดยอดรวม + ตารางสรุป
 // flow: เปิดหน้า → โหลดรายการหมวดหมู่ + สรุปทั้งหมด → ผู้ใช้แก้ฟอร์ม → กดค้นหา → โหลดสรุปใหม่
 export default function Home() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS); // ค่าในฟอร์มตอนนี้
@@ -34,9 +35,12 @@ export default function Home() {
     search(EMPTY_FILTERS);
   }, [search]);
 
+  const hasRows = data !== null && data.categories.length > 0;
+
   return (
     <main>
       <h1>สรุปยอดซื้อ–ขายรายสินค้า</h1>
+      <p className="subtitle">สรุปตามหมวดหมู่และหมวดหมู่ย่อย พร้อมยอดคงเหลือ (ซื้อ − ขาย)</p>
 
       <FilterForm
         filters={filters}
@@ -45,12 +49,20 @@ export default function Home() {
         onSearch={(override) => search(override ?? filters)}
       />
 
-      {loading && <p className="status">กำลังโหลด...</p>}
-      {error && <p className="status error">{error}</p>}
-      {!loading && !error && data && data.categories.length === 0 && (
-        <p className="status">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</p>
+      {/* ข้อความสถานะ: role=status/alert ให้ screen reader อ่านให้ */}
+      {error && <p className="status error" role="alert">{error}</p>}
+      {!error && !data && loading && <p className="status" role="status">กำลังโหลด...</p>}
+      {!error && data && !hasRows && !loading && (
+        <p className="status" role="status">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</p>
       )}
-      {!loading && !error && data && data.categories.length > 0 && <SummaryTable data={data} />}
+
+      {/* มีข้อมูลแล้ว: ระหว่างค้นหาใหม่ยังโชว์ผลเดิมแบบจางไว้ (ไม่ให้หน้ากระโดด) */}
+      {!error && data && hasRows && (
+        <>
+          <SummaryCards total={data.total} />
+          <SummaryTable data={data} loading={loading} />
+        </>
+      )}
     </main>
   );
 }

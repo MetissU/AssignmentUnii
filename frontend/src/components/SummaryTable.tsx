@@ -1,4 +1,4 @@
-import { GRADES, Side, SummaryResponse, SummaryRow } from '@/lib/types';
+import { CategorySummary, GRADES, Side, SummaryResponse, SummaryRow } from '@/lib/types';
 
 // ---------- ตัวช่วยจัดรูปแบบ ----------
 const num = (n: number) => n.toLocaleString('th-TH', { maximumFractionDigits: 2 });
@@ -9,14 +9,20 @@ function priceRange(min: number | null, max: number | null) {
   return min === max ? num(min) : `${num(min)}–${num(max)}`;
 }
 
+// เซลล์ตัวเลข: ชิดขวา, ค่า 0 จางลง, ค่าติดลบเป็นสีแดง
+function Num({ value }: { value: number }) {
+  const cls = value === 0 ? 'num zero' : value < 0 ? 'num neg' : 'num';
+  return <td className={cls}>{num(value)}</td>;
+}
+
 // ---------- เซลล์ของ 1 ฝั่ง (ซื้อ หรือ ขาย) — 8 คอลัมน์ ----------
 function SideCells({ side }: { side: Side }) {
   return (
     <>
-      <td className="num">{num(side.kg)}</td>
+      <Num value={side.kg} />
       <td className="num">{priceRange(side.minPrice, side.maxPrice)}</td>
       {GRADES.map((g) => (
-        <td key={g} className="num">{num(side.kgByGrade[g])}</td>
+        <Num key={g} value={side.kgByGrade[g]} />
       ))}
       <td>
         {side.orderIds.length === 0 ? (
@@ -29,7 +35,7 @@ function SideCells({ side }: { side: Side }) {
           </details>
         )}
       </td>
-      <td className="num">{num(side.baht)}</td>
+      <Num value={side.baht} />
     </>
   );
 }
@@ -41,48 +47,13 @@ function DataRow({ name, row, className }: { name: string; row: SummaryRow; clas
       <th scope="row">{name}</th>
       <SideCells side={row.buy} />
       <SideCells side={row.sell} />
-      <td className="num">{num(row.remaining.kg)}</td>
-      <td className="num">{num(row.remaining.baht)}</td>
+      <Num value={row.remaining.kg} />
+      <Num value={row.remaining.baht} />
     </tr>
   );
 }
 
-export default function SummaryTable({ data }: { data: SummaryResponse }) {
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          {/* แถวหัวระดับกลุ่ม */}
-          <tr>
-            <th rowSpan={2}>หมวดหมู่ / หมวดหมู่ย่อย</th>
-            <th colSpan={8} className="group-buy">ซื้อ</th>
-            <th colSpan={8} className="group-sell">ขาย</th>
-            <th colSpan={2} className="group-rest">คงเหลือ</th>
-          </tr>
-          {/* แถวหัวระดับคอลัมน์ (ซื้อและขายใช้ชุดเดียวกัน) */}
-          <tr>
-            {[0, 1].map((i) => (
-              <HeaderCells key={i} />
-            ))}
-            <th>กก.</th>
-            <th>บาท</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {data.categories.map((cat) => (
-            <CategoryBlock key={cat.categoryId} cat={cat} />
-          ))}
-        </tbody>
-
-        <tfoot>
-          <DataRow name="รวมทั้งหมด" row={data.total} className="grand" />
-        </tfoot>
-      </table>
-    </div>
-  );
-}
-
+// หัวคอลัมน์ของ 1 ฝั่ง (ซื้อและขายใช้ชุดเดียวกัน)
 function HeaderCells() {
   return (
     <>
@@ -98,7 +69,7 @@ function HeaderCells() {
 }
 
 // หมวดหมู่ 1 หมวด = แถวสรุปหมวด + แถวหมวดย่อยทุกแถว
-function CategoryBlock({ cat }: { cat: SummaryResponse['categories'][number] }) {
+function CategoryBlock({ cat }: { cat: CategorySummary }) {
   return (
     <>
       <DataRow name={cat.categoryName} row={cat} className="category" />
@@ -106,5 +77,42 @@ function CategoryBlock({ cat }: { cat: SummaryResponse['categories'][number] }) 
         <DataRow key={sub.subCategoryId} name={sub.subCategoryName} row={sub} />
       ))}
     </>
+  );
+}
+
+// loading = กำลังโหลดผลใหม่ (แสดงตารางเดิมแบบจางไว้ ไม่ให้หน้ากระโดด)
+export default function SummaryTable({ data, loading }: { data: SummaryResponse; loading: boolean }) {
+  return (
+    <div className={loading ? 'table-wrap dim' : 'table-wrap'} aria-busy={loading}>
+      <table>
+        <caption className="sr-only">ตารางสรุปยอดซื้อ ขาย และคงเหลือ แยกตามหมวดหมู่และหมวดหมู่ย่อย</caption>
+        <thead>
+          {/* แถวหัวระดับกลุ่ม */}
+          <tr>
+            <th rowSpan={2}>หมวดหมู่ / หมวดหมู่ย่อย</th>
+            <th colSpan={8}>ซื้อ</th>
+            <th colSpan={8} className="group-sell">ขาย</th>
+            <th colSpan={2} className="group-rest">คงเหลือ</th>
+          </tr>
+          {/* แถวหัวระดับคอลัมน์ */}
+          <tr>
+            <HeaderCells />
+            <HeaderCells />
+            <th>กก.</th>
+            <th>บาท</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {data.categories.map((cat) => (
+            <CategoryBlock key={cat.categoryId} cat={cat} />
+          ))}
+        </tbody>
+
+        <tfoot>
+          <DataRow name="รวมทั้งหมด" row={data.total} />
+        </tfoot>
+      </table>
+    </div>
   );
 }

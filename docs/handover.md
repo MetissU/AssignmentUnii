@@ -28,7 +28,8 @@ backend/src/
 
 frontend/src/
 ├─ app/page.tsx                  หน้าเดียว: state + เรียก API
-├─ components/FilterForm.tsx     ฟอร์ม filter (ไม่เรียก API เอง)
+├─ components/FilterForm.tsx     ฟอร์ม filter 4 กลุ่ม (ไม่เรียก API เอง)
+├─ components/SummaryCards.tsx   การ์ดยอดรวม ซื้อ/ขาย/คงเหลือ (ไม่มี state)
 ├─ components/SummaryTable.tsx   ตาราง (ไม่มี state)
 └─ lib/api.ts, types.ts          เรียก backend + ชนิดข้อมูล
 ```
@@ -59,7 +60,8 @@ cd backend && npm test        # unit test ของ normalize / buildMatch / bui
 | เพิ่มคอลัมน์ในตาราง | `summary.service.ts` ($group) + `summary.types.ts` + `build-summary.ts` → `SummaryTable.tsx` + `lib/types.ts` |
 | เปลี่ยนสูตรคงเหลือ | `toSummaryRow()` ใน `build-summary.ts` (+ แก้ `business-rules.md`) |
 | ต้นทางเปลี่ยนรูปแบบ JSON | `sync/source-types.ts` + `sync/normalize.ts` |
-| เปลี่ยนสีธีม | ตัวแปร CSS ใน `frontend/src/app/globals.css` (`--primary`, `--secondary`) |
+| เปลี่ยนสีธีม/ระยะ | ตัวแปร CSS (design tokens) ที่หัวไฟล์ `frontend/src/app/globals.css` (`--primary`, `--secondary` …) |
+| เปลี่ยนฟอนต์ | `frontend/src/app/layout.tsx` (Noto Sans Thai ผ่าน `next/font/google`) |
 | เปลี่ยนที่อยู่ API | env `NEXT_PUBLIC_API_URL` (frontend), `SOURCE_API_BASE` (backend ต้นทาง) |
 
 ## 6. Environment variables
@@ -73,11 +75,23 @@ cd backend && npm test        # unit test ของ normalize / buildMatch / bui
 | `SOURCE_API_BASE` | backend | `https://apirecycle.unii.co.th` | API ต้นทาง |
 | `NEXT_PUBLIC_API_URL` | frontend | `http://localhost:3001` | API ที่เบราว์เซอร์เรียก (ฝังตอน build) |
 
-## 7. ข้อจำกัดที่ทราบ (Known limitations)
+## 7. แนวทางออกแบบ UI
+
+สไตล์ Minimalism แบบ dashboard ใช้สีธีมตามโจทย์ (`#4534f0` / `#b42996`) และฟอนต์ Noto Sans Thai
+
+- ฟอร์ม filter แบ่ง 4 กลุ่ม ทุกช่องมี label ที่มองเห็น; เกรดเป็นปุ่มกดเลือกหลายเกรด (ใช้ checkbox จริงข้างใต้)
+- การ์ดยอดรวม 3 ใบ อ่านภาพรวมก่อนลงตาราง
+- ตารางเลื่อนในกรอบของตัวเอง: หัวตาราง 2 แถว, คอลัมน์ชื่อ และแถวรวมทั้งหมดจะค้างไว้; ค่า 0 จาง, ค่าติดลบเป็นสีแดง; ตัวเลขใช้ตัวเลขแบบความกว้างเท่ากัน (tabular)
+- ระหว่างค้นหาใหม่ ตารางเดิมจางลงแทนที่จะหายไป (หน้าไม่กระโดด)
+- ปุ่ม/ช่องกรอกสูงอย่างน้อย 44px, มี focus ring, เคารพ `prefers-reduced-motion`
+- ยังไม่มี dark mode
+
+## 8. ข้อจำกัดที่ทราบ (Known limitations)
 
 - **ไม่มี pagination** — ข้อมูลตัวอย่างมีไม่กี่ร้อยบรรทัด ผลสรุปมีไม่เกินไม่กี่ร้อยแถว; ถ้าข้อมูลโตมาก ให้เพิ่ม pagination ที่ระดับหมวดหมู่
 - **ไม่มี authentication** — โจทย์ไม่ได้ระบุ
 - **Sync เป็นแบบ "เพิ่ม/อัปเดต" เท่านั้น** — ออเดอร์ที่ถูกลบที่ต้นทางจะไม่ถูกลบออกจาก DB
 - **`total` ใช้ค่าจากต้นทาง** ซึ่งไม่เท่ากับ `price × kg` เสมอไปในข้อมูลตัวอย่าง (ดู business-rules.md)
 - **ไม่มี test ระดับ end-to-end / component** — มีเฉพาะ unit test ของ logic หลัก; การตรวจ aggregation กับ MongoDB จริงทำด้วยมือ (ดูหัวข้อตรวจสอบใน README)
+- **ฟอนต์ดาวน์โหลดตอน build** (`next/font/google`) — build frontend ครั้งแรกต้องออกอินเทอร์เน็ต
 - เก็บเวลา `orderFinishedTime` ไม่ได้ใช้ (โจทย์ filter ระดับวัน)
