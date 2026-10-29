@@ -1,0 +1,30 @@
+# รันทั้งระบบ: docker compose up --build
+#   web   → http://localhost:3000   (Next.js)
+#   api   → http://localhost:3001   (NestJS)
+#   mongo → localhost:27017         (MongoDB, เก็บข้อมูลใน volume)
+# ถ้า port ชน เปลี่ยนได้: WEB_PORT=8080 API_PORT=3002 docker compose up --build
+services:
+  mongo:
+    image: mongo:7
+    ports: ["27017:27017"]
+    volumes: ["mongo-data:/data/db"]
+
+  api:
+    build: ./backend
+    ports: ["${API_PORT:-3001}:3001"]
+    environment:
+      MONGO_URI: mongodb://mongo:27017/unii
+      AUTO_SYNC: "true"          # DB ว่าง → ดึงข้อมูลจากต้นทางให้อัตโนมัติ
+      WEB_ORIGIN: http://localhost:${WEB_PORT:-3000}
+    depends_on: [mongo]
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-3001}
+    ports: ["${WEB_PORT:-3000}:3000"]
+    depends_on: [api]
+
+volumes:
+  mongo-data:

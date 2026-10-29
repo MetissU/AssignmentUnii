@@ -1,0 +1,83 @@
+# คู่มือส่งต่องาน (Handover)
+
+สำหรับ developer ที่รับช่วงต่อ — อ่านไฟล์นี้ก่อนแล้วค่อยเปิดโค้ด
+
+## 1. ระบบนี้ทำอะไร (30 วินาที)
+
+ดึงออเดอร์ซื้อ/ขายและหมวดสินค้าจาก API ของ Unii → เก็บลง MongoDB → NestJS ให้ `GET /summary` → Next.js แสดงตารางสรุป **หมวดหมู่ → หมวดย่อย** พร้อมซื้อ/ขาย/คงเหลือ และ filter 7 แบบ
+
+อ่านต่อ: [flow.md](flow.md) (ผัง) · [business-rules.md](business-rules.md) (สูตร) · [api.md](api.md) · [mongodb-primer.md](mongodb-primer.md) (ถ้าไม่เคยใช้ MongoDB)
+
+## 2. แผนที่โค้ด
+
+```
+backend/src/
+├─ main.ts, app.module.ts        ทางเข้า + ประกอบ module + เชื่อม MongoDB
+├─ seed.ts                       npm run seed (เรียก SyncService เหมือน POST /sync)
+├─ categories/                   schema Category + GET /categories
+├─ transactions/                 schema TransactionLine (collection transaction_lines)
+├─ sync/
+│  ├─ source-types.ts            ชนิดข้อมูลดิบจาก API ต้นทาง
+│  ├─ normalize.ts  (+spec)      ★ แปลงข้อมูลต้นทาง → รูปแบบใน DB  (ฟังก์ชันบริสุทธิ์)
+│  └─ sync.service.ts            ดึง → normalize → upsert
+└─ summary/
+   ├─ summary-query.dto.ts       พารามิเตอร์ + การตรวจ (class-validator)
+   ├─ build-match.ts (+spec)     ★ filter → เงื่อนไข MongoDB $match
+   ├─ summary.service.ts         aggregate 2 ขั้น ($match, $group)
+   └─ build-summary.ts (+spec)   ★ แถว aggregate → ต้นไม้ หมวด→หมวดย่อย + คงเหลือ
+
+frontend/src/
+├─ app/page.tsx                  หน้าเดียว: state + เรียก API
+├─ components/FilterForm.tsx     ฟอร์ม filter (ไม่เรียก API เอง)
+├─ components/SummaryTable.tsx   ตาราง (ไม่มี state)
+└─ lib/api.ts, types.ts          เรียก backend + ชนิดข้อมูล
+```
+
+★ = ที่เก็บ logic ที่สำคัญ และมี unit test ครอบคลุม — **แยกเป็นฟังก์ชันบริสุทธิ์ตั้งใจ** เพื่อให้เทสและอ่านง่ายโดยไม่ต้องมี DB
+
+## 3. หลักการออกแบบ (ทำไมโค้ดหน้าตาแบบนี้)
+
+1. **อ่านจาก MongoDB เท่านั้น** ไม่เรียก API ต้นทางตอนใช้งาน → เร็ว และไม่พังเมื่อต้นทางล่ม
+2. **เก็บเป็น "บรรทัดสินค้า" แบบแบน** (ออเดอร์ × หมวดย่อย × เกรด) → filter และรวมยอดง่าย
+3. **Mongo ทำแค่ กรอง + รวมยอด** ส่วนการจัดกลุ่มเป็นต้นไม้/คำนวณคงเหลืออยู่ใน TypeScript (`build-summary.ts`) → อ่านง่าย เทสง่าย
+4. **Sync เป็น idempotent** (upsert ด้วย unique index) → รันซ้ำได้
+5. ไม่มี library เกินจำเป็น: ไม่มี state manager, UI kit, ORM ชั้นที่สอง
+
+## 4. รันและทดสอบ
+
+ดู [README](../README.md) สำหรับคำสั่งรัน ส่วนการทดสอบ:
+
+```bash
+cd backend && npm test        # unit test ของ normalize / buildMatch / buildSummary
+```
+
+## 5. "อยากแก้ X ต้องแก้ที่ไหน"
+
+| โจทย์เปลี่ยน | แก้ที่ |
+|---|---|
+| เพิ่ม filter ใหม่ | `summary-query.dto.ts` (เพิ่มฟิลด์) → `build-match.ts` (เพิ่มเงื่อนไข + test) → `lib/types.ts` + `lib/api.ts` (`toQuery`) → `FilterForm.tsx` |
+| เพิ่มคอลัมน์ในตาราง | `summary.service.ts` ($group) + `summary.types.ts` + `build-summary.ts` → `SummaryTable.tsx` + `lib/types.ts` |
+| เปลี่ยนสูตรคงเหลือ | `toSummaryRow()` ใน `build-summary.ts` (+ แก้ `business-rules.md`) |
+| ต้นทางเปลี่ยนรูปแบบ JSON | `sync/source-types.ts` + `sync/normalize.ts` |
+| เปลี่ยนสีธีม | ตัวแปร CSS ใน `frontend/src/app/globals.css` (`--primary`, `--secondary`) |
+| เปลี่ยนที่อยู่ API | env `NEXT_PUBLIC_API_URL` (frontend), `SOURCE_API_BASE` (backend ต้นทาง) |
+
+## 6. Environment variables
+
+| ตัวแปร | ที่ | ค่าเริ่มต้น | ความหมาย |
+|---|---|---|---|
+| `MONGO_URI` | backend | `mongodb://localhost:27017/unii` | การเชื่อมต่อ MongoDB |
+| `PORT` | backend | `3001` | |
+| `WEB_ORIGIN` | backend | `http://localhost:3000` | origin ที่อนุญาตให้เรียก API (CORS) |
+| `AUTO_SYNC` | backend | (ปิด) | `true` = เปิดระบบแล้ว DB ว่าง → sync ให้เอง |
+| `SOURCE_API_BASE` | backend | `https://apirecycle.unii.co.th` | API ต้นทาง |
+| `NEXT_PUBLIC_API_URL` | frontend | `http://localhost:3001` | API ที่เบราว์เซอร์เรียก (ฝังตอน build) |
+
+## 7. ข้อจำกัดที่ทราบ (Known limitations)
+
+- **ไม่มี pagination** — ข้อมูลตัวอย่างมีไม่กี่ร้อยบรรทัด ผลสรุปมีไม่เกินไม่กี่ร้อยแถว; ถ้าข้อมูลโตมาก ให้เพิ่ม pagination ที่ระดับหมวดหมู่
+- **ไม่มี authentication** — โจทย์ไม่ได้ระบุ
+- **Sync เป็นแบบ "เพิ่ม/อัปเดต" เท่านั้น** — ออเดอร์ที่ถูกลบที่ต้นทางจะไม่ถูกลบออกจาก DB
+- **`total` ใช้ค่าจากต้นทาง** ซึ่งไม่เท่ากับ `price × kg` เสมอไปในข้อมูลตัวอย่าง (ดู business-rules.md)
+- **ไม่มี test ระดับ end-to-end / component** — มีเฉพาะ unit test ของ logic หลัก; การตรวจ aggregation กับ MongoDB จริงทำด้วยมือ (ดูหัวข้อตรวจสอบใน README)
+- เก็บเวลา `orderFinishedTime` ไม่ได้ใช้ (โจทย์ filter ระดับวัน)
