@@ -44,9 +44,22 @@ npm run dev           # http://localhost:3000
 
 ## ทดสอบ
 
+Unit test ของ logic หลัก (normalize / buildMatch / buildSummary):
+
 ```bash
 cd backend && npm test
 ```
+
+### ตรวจความถูกต้องกับข้อมูลจริง
+
+หลังเปิดระบบและ sync แล้ว ค่าที่ควรได้จากข้อมูลตัวอย่างของ Unii:
+
+| ตรวจอะไร | คำสั่ง | ผลที่ควรได้ |
+|---|---|---|
+| นำเข้าข้อมูล | `curl -X POST http://localhost:3001/sync` | `{"categories":14,"transactionLines":521}` (สั่งซ้ำได้ผลเท่าเดิม) |
+| หมวดหมู่ | `curl http://localhost:3001/categories` | 14 หมวด หมวดแรก "พลาสติก" มี 23 หมวดย่อย |
+| กรองเกรด | `curl "http://localhost:3001/summary?grade=A"` | `total.remaining.kg` = 650757.81 |
+| ค่าผิดรูปแบบ | `curl "http://localhost:3001/summary?dateFrom=abc"` | HTTP 400 |
 
 ## เอกสาร
 

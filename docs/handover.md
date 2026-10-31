@@ -19,12 +19,15 @@ backend/src/
 ├─ sync/
 │  ├─ source-types.ts            ชนิดข้อมูลดิบจาก API ต้นทาง
 │  ├─ normalize.ts  (+spec)      ★ แปลงข้อมูลต้นทาง → รูปแบบใน DB  (ฟังก์ชันบริสุทธิ์)
-│  └─ sync.service.ts            ดึง → normalize → upsert
+│  ├─ sync.service.ts            ดึง → normalize → upsert
+│  └─ sync.controller.ts         POST /sync
 └─ summary/
    ├─ summary-query.dto.ts       พารามิเตอร์ + การตรวจ (class-validator)
+   ├─ summary.types.ts           ชนิดข้อมูลของ response
    ├─ build-match.ts (+spec)     ★ filter → เงื่อนไข MongoDB $match
    ├─ summary.service.ts         aggregate 2 ขั้น ($match, $group)
-   └─ build-summary.ts (+spec)   ★ แถว aggregate → ต้นไม้ หมวด→หมวดย่อย + คงเหลือ
+   ├─ build-summary.ts (+spec)   ★ แถว aggregate → ต้นไม้ หมวด→หมวดย่อย + คงเหลือ
+   └─ summary.controller.ts      GET /summary
 
 frontend/src/
 ├─ app/page.tsx                  หน้าเดียว: state + เรียก API
@@ -51,6 +54,8 @@ frontend/src/
 ```bash
 cd backend && npm test        # unit test ของ normalize / buildMatch / buildSummary
 ```
+
+ตรวจผลกับข้อมูลจริงด้วยตาราง "ตรวจความถูกต้องกับข้อมูลจริง" ใน README
 
 ## 5. "อยากแก้ X ต้องแก้ที่ไหน"
 
@@ -92,6 +97,6 @@ cd backend && npm test        # unit test ของ normalize / buildMatch / bui
 - **ไม่มี authentication** — โจทย์ไม่ได้ระบุ
 - **Sync เป็นแบบ "เพิ่ม/อัปเดต" เท่านั้น** — ออเดอร์ที่ถูกลบที่ต้นทางจะไม่ถูกลบออกจาก DB
 - **`total` ใช้ค่าจากต้นทาง** ซึ่งไม่เท่ากับ `price × kg` เสมอไปในข้อมูลตัวอย่าง (ดู business-rules.md)
-- **ไม่มี test ระดับ end-to-end / component** — มีเฉพาะ unit test ของ logic หลัก; การตรวจ aggregation กับ MongoDB จริงทำด้วยมือ (ดูหัวข้อตรวจสอบใน README)
+- **ไม่มี test ระดับ end-to-end / component** — มีเฉพาะ unit test ของ logic หลัก; การตรวจ aggregation กับ MongoDB จริงทำด้วยมือ (ดูตาราง "ตรวจความถูกต้องกับข้อมูลจริง" ใน README)
 - **ฟอนต์ดาวน์โหลดตอน build** (`next/font/google`) — build frontend ครั้งแรกต้องออกอินเทอร์เน็ต
 - เก็บเวลา `orderFinishedTime` ไม่ได้ใช้ (โจทย์ filter ระดับวัน)
