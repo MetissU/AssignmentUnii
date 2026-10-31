@@ -117,3 +117,4 @@ export function exportSummaryToCsv(data: SummaryResponse, filename = 'summary-re
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
