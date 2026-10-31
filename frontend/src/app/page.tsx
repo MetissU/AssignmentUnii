@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useCallback, useEffect, useState } from 'react';
 import FilterForm from '@/components/FilterForm';
 import SkeletonLoader from '@/components/SkeletonLoader';
@@ -47,9 +48,8 @@ export default function Home() {
       <header className="top-navbar">
         <div className="nav-container">
           <div className="brand-group">
-            <div className="brand-logo">
-              <span className="logo-letter">U</span>
-            </div>
+            {/* โลโก้บริษัท (ไฟล์อยู่ที่ frontend/public/unii-logo.png) */}
+            <Image src="/unii-logo.png" alt="Unii" width={48} height={48} className="brand-logo" priority />
             <div>
               <div className="brand-title-row">
                 <span className="brand-name">Unii Digital Group</span>
@@ -160,9 +160,12 @@ export default function Home() {
       {/* Footer */}
       <footer className="app-footer">
         <div className="footer-container">
-          <p className="footer-left">
-            ระบบสรุปยอดซื้อ–ขายรายสินค้า (NestJS + MongoDB + Next.js App Router)
-          </p>
+          <div className="footer-brand">
+            <Image src="/unii-logo.png" alt="Unii" width={32} height={32} className="footer-logo" />
+            <p className="footer-left">
+              ระบบสรุปยอดซื้อ–ขายรายสินค้า (NestJS + MongoDB + Next.js App Router)
+            </p>
+          </div>
           <p className="footer-right">
             ธีมสีตามโจทย์: Primary <code>#4534f0</code> • Secondary <code>#b42996</code>
           </p>
