@@ -70,7 +70,6 @@ cd backend && npm test
 | [docs/flow.md](docs/flow.md) | ผัง flow ทั้งหมด (ภาพรวม, sync, request, ข้อมูล, หน้าเว็บ) |
 | [docs/business-rules.md](docs/business-rules.md) | สูตรคำนวณ, กติกา filter, ข้อตกลงเรื่องข้อมูล |
 | [docs/api.md](docs/api.md) | รายละเอียดทุก endpoint พร้อมตัวอย่าง |
-| [docs/mongodb-primer.md](docs/mongodb-primer.md) | MongoDB สำหรับมือใหม่ + อธิบาย aggregation ที่ใช้ |
 
 ## โครงสร้างโฟลเดอร์
 

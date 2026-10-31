@@ -6,7 +6,7 @@
 
 ดึงออเดอร์ซื้อ/ขายและหมวดสินค้าจาก API ของ Unii → เก็บลง MongoDB → NestJS ให้ `GET /summary` → Next.js แสดงตารางสรุป **หมวดหมู่ → หมวดย่อย** พร้อมซื้อ/ขาย/คงเหลือ และ filter 7 แบบ
 
-อ่านต่อ: [flow.md](flow.md) (ผัง) · [data-dictionary.md](data-dictionary.md) (ความหมายทุกฟิลด์) · [business-rules.md](business-rules.md) (สูตร) · [api.md](api.md) · [mongodb-primer.md](mongodb-primer.md) (ถ้าไม่เคยใช้ MongoDB)
+อ่านต่อ: [flow.md](flow.md) (ผัง) · [data-dictionary.md](data-dictionary.md) (ความหมายทุกฟิลด์) · [business-rules.md](business-rules.md) (สูตร) · [api.md](api.md)
 
 ## 2. แผนที่โค้ด
 
