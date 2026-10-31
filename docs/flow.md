@@ -59,7 +59,7 @@ sequenceDiagram
     S-->>T: { categories, transactionLines }
 ```
 
-**Idempotent:** สั่ง sync กี่ครั้งก็ได้ ข้อมูลไม่ซ้ำ เพราะ upsert ด้วย key `(orderId, type, subCategoryId, grade)`
+**Idempotent:** สั่ง sync กี่ครั้งก็ได้ ข้อมูลไม่ซ้ำ เพราะ upsert ด้วย key `(orderId, tradeType, subCategoryId, grade)`
 
 ## 3) Flow การค้นหา/สรุปยอด (Request)
 
@@ -95,13 +95,13 @@ erDiagram
     }
     transaction_lines {
         string orderId "UK ร่วม 4 ฟิลด์"
-        string type "buy | sell"
+        string tradeType "buy | sell"
         string categoryId FK
         string subCategoryId FK
         string grade "A B C D"
-        number price "บาท/กก."
+        number pricePerKg "บาท/กก."
         number quantityKg "กก."
-        number total "บาท"
+        number amountBaht "บาท"
         date orderFinishedDate
     }
     categories ||--o{ transaction_lines : "categoryId / subCategoryId"

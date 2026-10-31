@@ -49,27 +49,27 @@ curl "http://localhost:3001/summary?orderId=CUNIIPRO2024&orderIdMode=contains"
     {
       "categoryId": "01",
       "categoryName": "พลาสติก",
-      "buy":  { "kg": 150, "baht": 5000, "minPrice": 30, "maxPrice": 35,
+      "buy":  { "totalKg": 150, "totalBaht": 5000, "minPricePerKg": 30, "maxPricePerKg": 35,
                 "kgByGrade": { "A": 100, "B": 50, "C": 0, "D": 0 },
                 "orderIds": ["CUNIIPRO20240409110012"] },
-      "sell": { "kg": 40, "baht": 1600, "minPrice": 40, "maxPrice": 40,
+      "sell": { "totalKg": 40, "totalBaht": 1600, "minPricePerKg": 40, "maxPricePerKg": 40,
                 "kgByGrade": { "A": 40, "B": 0, "C": 0, "D": 0 },
                 "orderIds": ["UNII20240507100042"] },
-      "remaining": { "kg": 110, "baht": 3400 },   // ซื้อ − ขาย
+      "remaining": { "totalKg": 110, "totalBaht": 3400 },   // ซื้อ − ขาย
       "subCategories": [
         { "subCategoryId": "0101", "subCategoryName": "…", "buy": {…}, "sell": {…}, "remaining": {…} }
       ]
     }
   ],
-  "total": { "buy": {…}, "sell": {…}, "remaining": { "kg": 110, "baht": 3400 } }
+  "total": { "buy": {…}, "sell": {…}, "remaining": { "totalKg": 110, "totalBaht": 3400 } }
 }
 ```
 
-- ฝั่งที่ไม่มีรายการ: `kg = 0`, `baht = 0`, `minPrice/maxPrice = null`, `orderIds = []`
+- ฝั่งที่ไม่มีรายการ: `totalKg = 0`, `totalBaht = 0`, `minPricePerKg/maxPricePerKg = null`, `orderIds = []`
 - หมวด/หมวดย่อยที่ไม่มีข้อมูลหลัง filter จะ **ไม่อยู่ใน response**
 - ไม่มีผลลัพธ์เลย → `{ "categories": [], "total": {…ศูนย์ทั้งหมด} }` (ไม่ใช่ error)
 
-ชนิดข้อมูลทั้งหมด: [`backend/src/summary/summary.types.ts`](../backend/src/summary/summary.types.ts)
+ชนิดข้อมูลทั้งหมด: [`backend/src/summary/summary.types.ts`](../backend/src/summary/summary.types.ts) · ความหมายทุกฟิลด์: [data-dictionary.md](data-dictionary.md)
 
 ---
 

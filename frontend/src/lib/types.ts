@@ -1,21 +1,23 @@
 // ชนิดข้อมูลที่ตรงกับ response ของ backend (ดู backend/src/summary/summary.types.ts)
+// ความหมายของทุกฟิลด์: docs/data-dictionary.md
 
 export type Grade = 'A' | 'B' | 'C' | 'D';
 export const GRADES: Grade[] = ['A', 'B', 'C', 'D'];
 
-export interface Side {
-  kg: number;
-  baht: number;
-  minPrice: number | null;
-  maxPrice: number | null;
+// ยอดรวมของฝั่งซื้อ หรือฝั่งขาย 1 ฝั่ง
+export interface SideTotals {
+  totalKg: number;
+  totalBaht: number;
+  minPricePerKg: number | null;
+  maxPricePerKg: number | null;
   kgByGrade: Record<Grade, number>;
   orderIds: string[];
 }
 
 export interface SummaryRow {
-  buy: Side;
-  sell: Side;
-  remaining: { kg: number; baht: number };
+  buy: SideTotals;
+  sell: SideTotals;
+  remaining: { totalKg: number; totalBaht: number }; // ซื้อ − ขาย
 }
 
 export interface SubCategorySummary extends SummaryRow {

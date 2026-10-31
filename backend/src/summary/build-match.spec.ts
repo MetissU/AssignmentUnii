@@ -19,18 +19,18 @@ describe('buildMatch', () => {
   });
 
   it('escape อักขระพิเศษของ regex', () => {
-    const m = buildMatch({ orderId: 'a.b', orderIdMode: 'contains' }) as { orderId: { $regex: string } };
-    expect(m.orderId.$regex).toBe('a\\.b');
+    const match = buildMatch({ orderId: 'a.b', orderIdMode: 'contains' }) as { orderId: { $regex: string } };
+    expect(match.orderId.$regex).toBe('a\\.b');
   });
 
   it('ช่วงราคาและเกรด', () => {
     expect(buildMatch({ priceMin: 10, grade: ['A', 'B'] })).toEqual({
-      price: { $gte: 10 },
+      pricePerKg: { $gte: 10 },
       grade: { $in: ['A', 'B'] },
     });
   });
 
   it('priceMin = 0 ยังต้องถูกนำไปใช้', () => {
-    expect(buildMatch({ priceMin: 0 })).toEqual({ price: { $gte: 0 } });
+    expect(buildMatch({ priceMin: 0 })).toEqual({ pricePerKg: { $gte: 0 } });
   });
 });

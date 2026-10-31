@@ -1,28 +1,20 @@
-import { CategorySummary, GRADES, Side, SummaryResponse, SummaryRow } from '@/lib/types';
-
-// ---------- ตัวช่วยจัดรูปแบบ ----------
-const num = (n: number) => n.toLocaleString('th-TH', { maximumFractionDigits: 2 });
-
-// ช่วงราคา: ราคาเดียว → "35", หลายราคา → "30–35", ไม่มี → "-"
-function priceRange(min: number | null, max: number | null) {
-  if (min === null || max === null) return '-';
-  return min === max ? num(min) : `${num(min)}–${num(max)}`;
-}
+import { formatNumber, formatPriceRange } from '@/lib/format';
+import { CategorySummary, GRADES, SideTotals, SummaryResponse, SummaryRow } from '@/lib/types';
 
 // เซลล์ตัวเลข: ชิดขวา, ค่า 0 จางลง, ค่าติดลบเป็นสีแดง
-function Num({ value }: { value: number }) {
-  const cls = value === 0 ? 'num zero' : value < 0 ? 'num neg' : 'num';
-  return <td className={cls}>{num(value)}</td>;
+function NumberCell({ value }: { value: number }) {
+  const cellClass = value === 0 ? 'num zero' : value < 0 ? 'num neg' : 'num';
+  return <td className={cellClass}>{formatNumber(value)}</td>;
 }
 
 // ---------- เซลล์ของ 1 ฝั่ง (ซื้อ หรือ ขาย) — 8 คอลัมน์ ----------
-function SideCells({ side }: { side: Side }) {
+function SideCells({ side }: { side: SideTotals }) {
   return (
     <>
-      <Num value={side.kg} />
-      <td className="num">{priceRange(side.minPrice, side.maxPrice)}</td>
-      {GRADES.map((g) => (
-        <Num key={g} value={side.kgByGrade[g]} />
+      <NumberCell value={side.totalKg} />
+      <td className="num">{formatPriceRange(side.minPricePerKg, side.maxPricePerKg)}</td>
+      {GRADES.map((grade) => (
+        <NumberCell key={grade} value={side.kgByGrade[grade]} />
       ))}
       <td>
         {side.orderIds.length === 0 ? (
@@ -31,36 +23,36 @@ function SideCells({ side }: { side: Side }) {
           // เลขออเดอร์อาจมีหลายรายการ จึงพับเก็บไว้ กดเพื่อดู
           <details>
             <summary>{side.orderIds.length} ออเดอร์</summary>
-            <ul>{side.orderIds.map((id) => <li key={id}>{id}</li>)}</ul>
+            <ul>{side.orderIds.map((orderId) => <li key={orderId}>{orderId}</li>)}</ul>
           </details>
         )}
       </td>
-      <Num value={side.baht} />
+      <NumberCell value={side.totalBaht} />
     </>
   );
 }
 
 // 1 แถวข้อมูล: ชื่อ | ซื้อ | ขาย | คงเหลือ
-function DataRow({ name, row, className }: { name: string; row: SummaryRow; className?: string }) {
+function SummaryTableRow({ name, row, className }: { name: string; row: SummaryRow; className?: string }) {
   return (
     <tr className={className}>
       <th scope="row">{name}</th>
       <SideCells side={row.buy} />
       <SideCells side={row.sell} />
-      <Num value={row.remaining.kg} />
-      <Num value={row.remaining.baht} />
+      <NumberCell value={row.remaining.totalKg} />
+      <NumberCell value={row.remaining.totalBaht} />
     </tr>
   );
 }
 
 // หัวคอลัมน์ของ 1 ฝั่ง (ซื้อและขายใช้ชุดเดียวกัน)
-function HeaderCells() {
+function SideHeaderCells() {
   return (
     <>
       <th>จำนวน (กก.)</th>
       <th>ราคา (บาท/กก.)</th>
-      {GRADES.map((g) => (
-        <th key={g}>เกรด {g}</th>
+      {GRADES.map((grade) => (
+        <th key={grade}>เกรด {grade}</th>
       ))}
       <th>เลขออเดอร์</th>
       <th>ยอดรวม (บาท)</th>
@@ -69,21 +61,21 @@ function HeaderCells() {
 }
 
 // หมวดหมู่ 1 หมวด = แถวสรุปหมวด + แถวหมวดย่อยทุกแถว
-function CategoryBlock({ cat }: { cat: CategorySummary }) {
+function CategoryRows({ category }: { category: CategorySummary }) {
   return (
     <>
-      <DataRow name={cat.categoryName} row={cat} className="category" />
-      {cat.subCategories.map((sub) => (
-        <DataRow key={sub.subCategoryId} name={sub.subCategoryName} row={sub} />
+      <SummaryTableRow name={category.categoryName} row={category} className="category" />
+      {category.subCategories.map((subCategory) => (
+        <SummaryTableRow key={subCategory.subCategoryId} name={subCategory.subCategoryName} row={subCategory} />
       ))}
     </>
   );
 }
 
-// loading = กำลังโหลดผลใหม่ (แสดงตารางเดิมแบบจางไว้ ไม่ให้หน้ากระโดด)
-export default function SummaryTable({ data, loading }: { data: SummaryResponse; loading: boolean }) {
+// isLoading = กำลังโหลดผลใหม่ (แสดงตารางเดิมแบบจางไว้ ไม่ให้หน้ากระโดด)
+export default function SummaryTable({ data, isLoading }: { data: SummaryResponse; isLoading: boolean }) {
   return (
-    <div className={loading ? 'table-wrap dim' : 'table-wrap'} aria-busy={loading}>
+    <div className={isLoading ? 'table-wrap dim' : 'table-wrap'} aria-busy={isLoading}>
       <table>
         <caption className="sr-only">ตารางสรุปยอดซื้อ ขาย และคงเหลือ แยกตามหมวดหมู่และหมวดหมู่ย่อย</caption>
         <thead>
@@ -96,21 +88,21 @@ export default function SummaryTable({ data, loading }: { data: SummaryResponse;
           </tr>
           {/* แถวหัวระดับคอลัมน์ */}
           <tr>
-            <HeaderCells />
-            <HeaderCells />
+            <SideHeaderCells />
+            <SideHeaderCells />
             <th>กก.</th>
             <th>บาท</th>
           </tr>
         </thead>
 
         <tbody>
-          {data.categories.map((cat) => (
-            <CategoryBlock key={cat.categoryId} cat={cat} />
+          {data.categories.map((category) => (
+            <CategoryRows key={category.categoryId} category={category} />
           ))}
         </tbody>
 
         <tfoot>
-          <DataRow name="รวมทั้งหมด" row={data.total} />
+          <SummaryTableRow name="รวมทั้งหมด" row={data.total} />
         </tfoot>
       </table>
     </div>

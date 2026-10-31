@@ -6,7 +6,7 @@
 
 ดึงออเดอร์ซื้อ/ขายและหมวดสินค้าจาก API ของ Unii → เก็บลง MongoDB → NestJS ให้ `GET /summary` → Next.js แสดงตารางสรุป **หมวดหมู่ → หมวดย่อย** พร้อมซื้อ/ขาย/คงเหลือ และ filter 7 แบบ
 
-อ่านต่อ: [flow.md](flow.md) (ผัง) · [business-rules.md](business-rules.md) (สูตร) · [api.md](api.md) · [mongodb-primer.md](mongodb-primer.md) (ถ้าไม่เคยใช้ MongoDB)
+อ่านต่อ: [flow.md](flow.md) (ผัง) · [data-dictionary.md](data-dictionary.md) (ความหมายทุกฟิลด์) · [business-rules.md](business-rules.md) (สูตร) · [api.md](api.md) · [mongodb-primer.md](mongodb-primer.md) (ถ้าไม่เคยใช้ MongoDB)
 
 ## 2. แผนที่โค้ด
 
@@ -34,7 +34,7 @@ frontend/src/
 ├─ components/FilterForm.tsx     ฟอร์ม filter 4 กลุ่ม (ไม่เรียก API เอง)
 ├─ components/SummaryCards.tsx   การ์ดยอดรวม ซื้อ/ขาย/คงเหลือ (ไม่มี state)
 ├─ components/SummaryTable.tsx   ตาราง (ไม่มี state)
-└─ lib/api.ts, types.ts          เรียก backend + ชนิดข้อมูล
+└─ lib/api.ts, types.ts, format.ts  เรียก backend + ชนิดข้อมูล + จัดรูปแบบตัวเลข
 ```
 
 ★ = ที่เก็บ logic ที่สำคัญ และมี unit test ครอบคลุม — **แยกเป็นฟังก์ชันบริสุทธิ์ตั้งใจ** เพื่อให้เทสและอ่านง่ายโดยไม่ต้องมี DB
@@ -62,8 +62,9 @@ cd backend && npm test        # unit test ของ normalize / buildMatch / bui
 | โจทย์เปลี่ยน | แก้ที่ |
 |---|---|
 | เพิ่ม filter ใหม่ | `summary-query.dto.ts` (เพิ่มฟิลด์) → `build-match.ts` (เพิ่มเงื่อนไข + test) → `lib/types.ts` + `lib/api.ts` (`toQuery`) → `FilterForm.tsx` |
-| เพิ่มคอลัมน์ในตาราง | `summary.service.ts` ($group) + `summary.types.ts` + `build-summary.ts` → `SummaryTable.tsx` + `lib/types.ts` |
-| เปลี่ยนสูตรคงเหลือ | `toSummaryRow()` ใน `build-summary.ts` (+ แก้ `business-rules.md`) |
+| เพิ่มคอลัมน์ในตาราง | `summary.service.ts` ($group) + `summary.types.ts` + `build-summary.ts` → `SummaryTable.tsx` + `lib/types.ts` (+ เพิ่มใน `data-dictionary.md`) |
+| เพิ่ม/เปลี่ยนชื่อฟิลด์ | ทำตามกติกาการตั้งชื่อใน `data-dictionary.md` แล้วแก้ทั้ง backend, frontend และเอกสารในคราวเดียว |
+| เปลี่ยนสูตรคงเหลือ | `buildSummaryRow()` ใน `build-summary.ts` (+ แก้ `business-rules.md`) |
 | ต้นทางเปลี่ยนรูปแบบ JSON | `sync/source-types.ts` + `sync/normalize.ts` |
 | เปลี่ยนสีธีม/ระยะ | ตัวแปร CSS (design tokens) ที่หัวไฟล์ `frontend/src/app/globals.css` (`--primary`, `--secondary` …) |
 | เปลี่ยนฟอนต์ | `frontend/src/app/layout.tsx` (Noto Sans Thai ผ่าน `next/font/google`) |
@@ -96,7 +97,7 @@ cd backend && npm test        # unit test ของ normalize / buildMatch / bui
 - **ไม่มี pagination** — ข้อมูลตัวอย่างมีไม่กี่ร้อยบรรทัด ผลสรุปมีไม่เกินไม่กี่ร้อยแถว; ถ้าข้อมูลโตมาก ให้เพิ่ม pagination ที่ระดับหมวดหมู่
 - **ไม่มี authentication** — โจทย์ไม่ได้ระบุ
 - **Sync เป็นแบบ "เพิ่ม/อัปเดต" เท่านั้น** — ออเดอร์ที่ถูกลบที่ต้นทางจะไม่ถูกลบออกจาก DB
-- **`total` ใช้ค่าจากต้นทาง** ซึ่งไม่เท่ากับ `price × kg` เสมอไปในข้อมูลตัวอย่าง (ดู business-rules.md)
+- **`total` ใช้ค่าจากต้นทาง** ซึ่งไม่เท่ากับ ราคา × กก. เสมอไปในข้อมูลตัวอย่าง (ดู business-rules.md)
 - **ไม่มี test ระดับ end-to-end / component** — มีเฉพาะ unit test ของ logic หลัก; การตรวจ aggregation กับ MongoDB จริงทำด้วยมือ (ดูตาราง "ตรวจความถูกต้องกับข้อมูลจริง" ใน README)
 - **ฟอนต์ดาวน์โหลดตอน build** (`next/font/google`) — build frontend ครั้งแรกต้องออกอินเทอร์เน็ต
 - เก็บเวลา `orderFinishedTime` ไม่ได้ใช้ (โจทย์ filter ระดับวัน)

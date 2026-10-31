@@ -1,30 +1,38 @@
-import { Grade, TransactionType } from '../transactions/transaction-line.schema';
+import { Grade, TradeType } from '../transactions/transaction-line.schema';
 
-// แถวผลลัพธ์จาก MongoDB aggregation (1 แถว = หมวดย่อย × ซื้อ/ขาย × เกรด)
-export interface AggRow {
-  _id: { categoryId: string; subCategoryId: string; type: TransactionType; grade: Grade };
-  kg: number;
-  baht: number;
-  minPrice: number;
-  maxPrice: number;
+// ความหมายของทุกฟิลด์: docs/data-dictionary.md หัวข้อ "Response ของ GET /summary"
+
+// แถวผลลัพธ์จาก MongoDB $group (1 แถว = หมวดย่อย × ซื้อ/ขาย × เกรด)
+export interface GroupedLineRow {
+  _id: { categoryId: string; subCategoryId: string; tradeType: TradeType; grade: Grade };
+  totalKg: number;
+  totalBaht: number;
+  minPricePerKg: number;
+  maxPricePerKg: number;
   orderIds: string[];
 }
 
-// ข้อมูลฝั่งซื้อ หรือฝั่งขาย 1 ฝั่ง
-export interface Side {
-  kg: number; // จำนวนรวม (กก.)
-  baht: number; // ยอดรวม (บาท)
-  minPrice: number | null; // ราคาต่ำสุดต่อ กก. (null = ไม่มีรายการ)
-  maxPrice: number | null; // ราคาสูงสุดต่อ กก.
-  kgByGrade: Record<Grade, number>; // จำนวนแยกเกรด
-  orderIds: string[]; // ออเดอร์ที่เกี่ยวข้อง
+// ยอดรวมของฝั่งซื้อ หรือฝั่งขาย 1 ฝั่ง
+export interface SideTotals {
+  totalKg: number; // จำนวนรวม (กก.)
+  totalBaht: number; // ยอดเงินรวม (บาท)
+  minPricePerKg: number | null; // ราคาต่ำสุด บาท/กก. (null = ไม่มีรายการ)
+  maxPricePerKg: number | null; // ราคาสูงสุด บาท/กก.
+  kgByGrade: Record<Grade, number>; // จำนวน กก. แยกเกรด
+  orderIds: string[]; // เลขออเดอร์ที่เกี่ยวข้อง (ไม่ซ้ำ)
+}
+
+// คงเหลือ = ซื้อ − ขาย
+export interface RemainingTotals {
+  totalKg: number;
+  totalBaht: number;
 }
 
 // 1 แถวในตาราง: ซื้อ + ขาย + คงเหลือ
 export interface SummaryRow {
-  buy: Side;
-  sell: Side;
-  remaining: { kg: number; baht: number }; // = ซื้อ − ขาย
+  buy: SideTotals;
+  sell: SideTotals;
+  remaining: RemainingTotals;
 }
 
 export interface SubCategorySummary extends SummaryRow {

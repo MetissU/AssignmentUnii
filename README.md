@@ -58,7 +58,7 @@ cd backend && npm test
 |---|---|---|
 | นำเข้าข้อมูล | `curl -X POST http://localhost:3001/sync` | `{"categories":14,"transactionLines":521}` (สั่งซ้ำได้ผลเท่าเดิม) |
 | หมวดหมู่ | `curl http://localhost:3001/categories` | 14 หมวด หมวดแรก "พลาสติก" มี 23 หมวดย่อย |
-| กรองเกรด | `curl "http://localhost:3001/summary?grade=A"` | `total.remaining.kg` = 650757.81 |
+| กรองเกรด | `curl "http://localhost:3001/summary?grade=A"` | `total.remaining.totalKg` = 650757.81 |
 | ค่าผิดรูปแบบ | `curl "http://localhost:3001/summary?dateFrom=abc"` | HTTP 400 |
 
 ## เอกสาร
@@ -66,6 +66,7 @@ cd backend && npm test
 | ไฟล์ | เนื้อหา |
 |---|---|
 | [docs/handover.md](docs/handover.md) | **เริ่มที่นี่** — คู่มือส่งต่อ: แผนที่โค้ด, หลักการออกแบบ, "อยากแก้ X แก้ที่ไหน" |
+| [docs/data-dictionary.md](docs/data-dictionary.md) | ความหมายของทุกฟิลด์ ตั้งแต่ API ต้นทาง → MongoDB → API → หน้าเว็บ และกติกาการตั้งชื่อ |
 | [docs/flow.md](docs/flow.md) | ผัง flow ทั้งหมด (ภาพรวม, sync, request, ข้อมูล, หน้าเว็บ) |
 | [docs/business-rules.md](docs/business-rules.md) | สูตรคำนวณ, กติกา filter, ข้อตกลงเรื่องข้อมูล |
 | [docs/api.md](docs/api.md) | รายละเอียดทุก endpoint พร้อมตัวอย่าง |

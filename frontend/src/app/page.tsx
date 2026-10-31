@@ -13,19 +13,19 @@ export default function Home() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS); // ค่าในฟอร์มตอนนี้
   const [categories, setCategories] = useState<CategoryOption[]>([]); // ข้อมูล dropdown
   const [data, setData] = useState<SummaryResponse | null>(null); // ผลสรุปที่แสดง
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
   // โหลดผลสรุปตาม filter ที่ส่งมา
-  const search = useCallback(async (f: Filters) => {
-    setLoading(true);
+  const search = useCallback(async (searchFilters: Filters) => {
+    setIsLoading(true);
     setError('');
     try {
-      setData(await fetchSummary(f));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'เกิดข้อผิดพลาด');
+      setData(await fetchSummary(searchFilters));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }, []);
 
@@ -46,13 +46,13 @@ export default function Home() {
         filters={filters}
         categories={categories}
         onChange={setFilters}
-        onSearch={(override) => search(override ?? filters)}
+        onSearch={(filtersOverride) => search(filtersOverride ?? filters)}
       />
 
       {/* ข้อความสถานะ: role=status/alert ให้ screen reader อ่านให้ */}
       {error && <p className="status error" role="alert">{error}</p>}
-      {!error && !data && loading && <p className="status" role="status">กำลังโหลด...</p>}
-      {!error && data && !hasRows && !loading && (
+      {!error && !data && isLoading && <p className="status" role="status">กำลังโหลด...</p>}
+      {!error && data && !hasRows && !isLoading && (
         <p className="status" role="status">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</p>
       )}
 
@@ -60,7 +60,7 @@ export default function Home() {
       {!error && data && hasRows && (
         <>
           <SummaryCards total={data.total} />
-          <SummaryTable data={data} loading={loading} />
+          <SummaryTable data={data} isLoading={isLoading} />
         </>
       )}
     </main>

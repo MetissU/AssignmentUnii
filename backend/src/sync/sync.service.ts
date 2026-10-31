@@ -10,9 +10,9 @@ const API_BASE = process.env.SOURCE_API_BASE ?? 'https://apirecycle.unii.co.th';
 
 // ดึง JSON จากต้นทาง (ถ้า HTTP ผิดพลาดให้ error ชัดเจน)
 async function fetchJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
-  if (!res.ok) throw new Error(`เรียก ${path} ไม่สำเร็จ: HTTP ${res.status}`);
-  return (await res.json()) as T;
+  const response = await fetch(`${API_BASE}${path}`);
+  if (!response.ok) throw new Error(`เรียก ${path} ไม่สำเร็จ: HTTP ${response.status}`);
+  return (await response.json()) as T;
 }
 
 @Injectable()
@@ -52,15 +52,16 @@ export class SyncService implements OnApplicationBootstrap {
 
     // 3) upsert: ถ้ามี key เดิมอยู่แล้วให้เขียนทับ ไม่มีก็เพิ่มใหม่
     await this.categoryModel.bulkWrite(
-      categories.map((c) => ({
-        updateOne: { filter: { categoryId: c.categoryId }, update: { $set: c }, upsert: true },
+      categories.map((category) => ({
+        updateOne: { filter: { categoryId: category.categoryId }, update: { $set: category }, upsert: true },
       })),
     );
     await this.lineModel.bulkWrite(
-      lines.map((l) => ({
+      lines.map((line) => ({
         updateOne: {
-          filter: { orderId: l.orderId, type: l.type, subCategoryId: l.subCategoryId, grade: l.grade },
-          update: { $set: l },
+          // 4 ฟิลด์นี้ = unique key ของบรรทัด (ตรงกับ unique index ใน schema)
+          filter: { orderId: line.orderId, tradeType: line.tradeType, subCategoryId: line.subCategoryId, grade: line.grade },
+          update: { $set: line },
           upsert: true,
         },
       })),

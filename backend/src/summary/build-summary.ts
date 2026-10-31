@@ -1,97 +1,133 @@
 import { Category } from '../categories/category.schema';
 import { GRADES } from '../transactions/transaction-line.schema';
-import { AggRow, CategorySummary, Side, SubCategorySummary, SummaryResponse, SummaryRow } from './summary.types';
+import {
+  CategorySummary,
+  GroupedLineRow,
+  SideTotals,
+  SubCategorySummary,
+  SummaryResponse,
+  SummaryRow,
+} from './summary.types';
 
 // ฟังก์ชันบริสุทธิ์: นำแถวจาก aggregation มาประกอบเป็นต้นไม้ หมวดหมู่ → หมวดย่อย → {ซื้อ, ขาย, คงเหลือ}
 // ไม่แตะ DB จึงเขียน unit test ได้ง่าย (ดู build-summary.spec.ts)
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
+const roundTo2Decimals = (value: number) => Math.round(value * 100) / 100;
 
-function emptySide(): Side {
-  return { kg: 0, baht: 0, minPrice: null, maxPrice: null, kgByGrade: { A: 0, B: 0, C: 0, D: 0 }, orderIds: [] };
+function createEmptySideTotals(): SideTotals {
+  return {
+    totalKg: 0,
+    totalBaht: 0,
+    minPricePerKg: null,
+    maxPricePerKg: null,
+    kgByGrade: { A: 0, B: 0, C: 0, D: 0 },
+    orderIds: [],
+  };
 }
 
-/** เอาแถว aggregation 1 แถวไปบวกเข้า Side */
-function addRow(side: Side, row: AggRow) {
-  side.kg += row.kg;
-  side.baht += row.baht;
-  side.kgByGrade[row._id.grade] += row.kg;
-  side.minPrice = side.minPrice === null ? row.minPrice : Math.min(side.minPrice, row.minPrice);
-  side.maxPrice = side.maxPrice === null ? row.maxPrice : Math.max(side.maxPrice, row.maxPrice);
+// ราคาต่ำสุด/สูงสุดที่รองรับค่า null (null = ยังไม่มีรายการ)
+const lowerPrice = (current: number | null, next: number) => (current === null ? next : Math.min(current, next));
+const higherPrice = (current: number | null, next: number) => (current === null ? next : Math.max(current, next));
+
+/** เอาแถว aggregation 1 แถวไปบวกเข้ายอดรวมของฝั่งนั้น */
+function addGroupedRowToSide(side: SideTotals, row: GroupedLineRow) {
+  side.totalKg += row.totalKg;
+  side.totalBaht += row.totalBaht;
+  side.kgByGrade[row._id.grade] += row.totalKg;
+  side.minPricePerKg = lowerPrice(side.minPricePerKg, row.minPricePerKg);
+  side.maxPricePerKg = higherPrice(side.maxPricePerKg, row.maxPricePerKg);
   side.orderIds.push(...row.orderIds);
 }
 
-/** รวม Side หลายอัน (ใช้หายอดรวมของหมวดหมู่ และยอดรวมทั้งหมด) */
-function mergeSides(sides: Side[]): Side {
-  const out = emptySide();
-  for (const s of sides) {
-    out.kg += s.kg;
-    out.baht += s.baht;
-    GRADES.forEach((g) => (out.kgByGrade[g] += s.kgByGrade[g]));
-    if (s.minPrice !== null) out.minPrice = out.minPrice === null ? s.minPrice : Math.min(out.minPrice, s.minPrice);
-    if (s.maxPrice !== null) out.maxPrice = out.maxPrice === null ? s.maxPrice : Math.max(out.maxPrice, s.maxPrice);
-    out.orderIds.push(...s.orderIds);
+/** รวมยอดหลายฝั่งเข้าด้วยกัน (ใช้หายอดของหมวดหมู่ และยอดรวมทั้งหมด) */
+function sumSideTotals(sides: SideTotals[]): SideTotals {
+  const combined = createEmptySideTotals();
+  for (const side of sides) {
+    combined.totalKg += side.totalKg;
+    combined.totalBaht += side.totalBaht;
+    GRADES.forEach((grade) => (combined.kgByGrade[grade] += side.kgByGrade[grade]));
+    if (side.minPricePerKg !== null) combined.minPricePerKg = lowerPrice(combined.minPricePerKg, side.minPricePerKg);
+    if (side.maxPricePerKg !== null) combined.maxPricePerKg = higherPrice(combined.maxPricePerKg, side.maxPricePerKg);
+    combined.orderIds.push(...side.orderIds);
   }
-  return out;
+  return combined;
 }
 
-/** ปัดเศษ + ตัด orderId ซ้ำ + เรียงลำดับ */
-function finalizeSide(side: Side): Side {
+/** ปัดเศษ + ตัด orderId ซ้ำ + เรียงลำดับ ก่อนส่งออก */
+function finalizeSideTotals(side: SideTotals): SideTotals {
   return {
     ...side,
-    kg: round2(side.kg),
-    baht: round2(side.baht),
-    kgByGrade: { A: round2(side.kgByGrade.A), B: round2(side.kgByGrade.B), C: round2(side.kgByGrade.C), D: round2(side.kgByGrade.D) },
+    totalKg: roundTo2Decimals(side.totalKg),
+    totalBaht: roundTo2Decimals(side.totalBaht),
+    kgByGrade: {
+      A: roundTo2Decimals(side.kgByGrade.A),
+      B: roundTo2Decimals(side.kgByGrade.B),
+      C: roundTo2Decimals(side.kgByGrade.C),
+      D: roundTo2Decimals(side.kgByGrade.D),
+    },
     orderIds: [...new Set(side.orderIds)].sort(),
   };
 }
 
 /** สร้างแถวสรุป: คงเหลือ = ซื้อ − ขาย (ทั้ง กก. และ บาท) */
-function toSummaryRow(buyRaw: Side, sellRaw: Side): SummaryRow {
-  const buy = finalizeSide(buyRaw);
-  const sell = finalizeSide(sellRaw);
+function buildSummaryRow(buyTotals: SideTotals, sellTotals: SideTotals): SummaryRow {
+  const buy = finalizeSideTotals(buyTotals);
+  const sell = finalizeSideTotals(sellTotals);
   return {
     buy,
     sell,
-    remaining: { kg: round2(buy.kg - sell.kg), baht: round2(buy.baht - sell.baht) },
+    remaining: {
+      totalKg: roundTo2Decimals(buy.totalKg - sell.totalKg),
+      totalBaht: roundTo2Decimals(buy.totalBaht - sell.totalBaht),
+    },
   };
 }
 
-export function buildSummary(rows: AggRow[], categories: Category[]): SummaryResponse {
+export function buildSummary(groupedRows: GroupedLineRow[], categories: Category[]): SummaryResponse {
   // 1) จัดกลุ่มแถวตามหมวดย่อย แล้วแยกฝั่งซื้อ/ขาย
-  const bySub = new Map<string, { buy: Side; sell: Side }>();
-  for (const row of rows) {
-    const key = row._id.subCategoryId;
-    if (!bySub.has(key)) bySub.set(key, { buy: emptySide(), sell: emptySide() });
-    addRow(bySub.get(key)![row._id.type], row);
+  const sidesBySubCategoryId = new Map<string, { buy: SideTotals; sell: SideTotals }>();
+  for (const row of groupedRows) {
+    const subCategoryId = row._id.subCategoryId;
+    if (!sidesBySubCategoryId.has(subCategoryId)) {
+      sidesBySubCategoryId.set(subCategoryId, { buy: createEmptySideTotals(), sell: createEmptySideTotals() });
+    }
+    addGroupedRowToSide(sidesBySubCategoryId.get(subCategoryId)![row._id.tradeType], row);
   }
 
   // 2) เดินตามลำดับหมวดหมู่ใน DB เพื่อให้เรียงสวย; หมวด/หมวดย่อยที่ไม่มีข้อมูลหลัง filter จะไม่แสดง
-  const result: CategorySummary[] = [];
-  for (const cat of categories) {
-    const subs: SubCategorySummary[] = [];
-    const subSides: { buy: Side; sell: Side }[] = [];
+  const categorySummaries: CategorySummary[] = [];
+  for (const category of categories) {
+    const subCategorySummaries: SubCategorySummary[] = [];
+    const subCategorySides: { buy: SideTotals; sell: SideTotals }[] = [];
 
-    for (const sub of [...cat.subCategories].sort((a, b) => a.subCategoryId.localeCompare(b.subCategoryId))) {
-      const sides = bySub.get(sub.subCategoryId);
+    const sortedSubCategories = [...category.subCategories].sort((a, b) => a.subCategoryId.localeCompare(b.subCategoryId));
+    for (const subCategory of sortedSubCategories) {
+      const sides = sidesBySubCategoryId.get(subCategory.subCategoryId);
       if (!sides) continue;
-      subSides.push(sides);
-      subs.push({ subCategoryId: sub.subCategoryId, subCategoryName: sub.subCategoryName, ...toSummaryRow(sides.buy, sides.sell) });
+      subCategorySides.push(sides);
+      subCategorySummaries.push({
+        subCategoryId: subCategory.subCategoryId,
+        subCategoryName: subCategory.subCategoryName,
+        ...buildSummaryRow(sides.buy, sides.sell),
+      });
     }
-    if (subs.length === 0) continue;
+    if (subCategorySummaries.length === 0) continue;
 
-    result.push({
-      categoryId: cat.categoryId,
-      categoryName: cat.categoryName,
-      subCategories: subs,
-      ...toSummaryRow(mergeSides(subSides.map((s) => s.buy)), mergeSides(subSides.map((s) => s.sell))),
+    categorySummaries.push({
+      categoryId: category.categoryId,
+      categoryName: category.categoryName,
+      subCategories: subCategorySummaries,
+      ...buildSummaryRow(
+        sumSideTotals(subCategorySides.map((sides) => sides.buy)),
+        sumSideTotals(subCategorySides.map((sides) => sides.sell)),
+      ),
     });
   }
 
   // 3) ยอดรวมทุกหมวด (สรุปท้ายตาราง)
-  const total = toSummaryRow(
-    mergeSides(result.map((c) => c.buy)),
-    mergeSides(result.map((c) => c.sell)),
+  const total = buildSummaryRow(
+    sumSideTotals(categorySummaries.map((summary) => summary.buy)),
+    sumSideTotals(categorySummaries.map((summary) => summary.sell)),
   );
-  return { categories: result, total };
+  return { categories: categorySummaries, total };
 }

@@ -34,17 +34,24 @@ describe('normalizeOrders', () => {
   it('แตกบรรทัดและข้ามเกรดที่ quantity = 0', () => {
     const lines = normalizeOrders([order], 'buy');
     expect(lines).toHaveLength(2);
-    expect(lines.map((l) => l.grade)).toEqual(['A', 'C']);
+    expect(lines.map((line) => line.grade)).toEqual(['A', 'C']);
   });
 
-  it('แปลง quantity เป็นตัวเลข, ใส่ type และใช้ total ตามต้นทาง', () => {
-    const [a, c] = normalizeOrders([order], 'sell');
-    expect(a).toMatchObject({ type: 'sell', quantityKg: 34, total: 1190, categoryId: '01', subCategoryId: '0101' });
-    expect(c.quantityKg).toBe(2.5);
+  it('แปลง quantity เป็นตัวเลข, ใส่ tradeType และใช้ total ตามต้นทางเป็น amountBaht', () => {
+    const [gradeALine, gradeCLine] = normalizeOrders([order], 'sell');
+    expect(gradeALine).toMatchObject({
+      tradeType: 'sell',
+      pricePerKg: 35,
+      quantityKg: 34,
+      amountBaht: 1190,
+      categoryId: '01',
+      subCategoryId: '0101',
+    });
+    expect(gradeCLine.quantityKg).toBe(2.5);
   });
 
   it('แปลงวันที่เป็น 00:00 UTC', () => {
-    const [a] = normalizeOrders([order], 'buy');
-    expect(a.orderFinishedDate.toISOString()).toBe('2024-04-09T00:00:00.000Z');
+    const [firstLine] = normalizeOrders([order], 'buy');
+    expect(firstLine.orderFinishedDate.toISOString()).toBe('2024-04-09T00:00:00.000Z');
   });
 });

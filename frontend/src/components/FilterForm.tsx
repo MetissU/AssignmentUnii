@@ -12,13 +12,13 @@ interface Props {
 // ฟอร์ม filter: ไม่เรียก API เอง — แค่แก้ค่าใน state ของหน้าหลัก แล้วแจ้งเมื่อกดค้นหา
 // จัดเป็น 4 กลุ่ม: ช่วงเวลา / สินค้า / เลขออเดอร์ / ราคาและเกรด
 export default function FilterForm({ filters, categories, onChange, onSearch }: Props) {
-  const set = <K extends keyof Filters>(key: K, value: Filters[K]) => onChange({ ...filters, [key]: value });
+  const setField = <K extends keyof Filters>(key: K, value: Filters[K]) => onChange({ ...filters, [key]: value });
 
   // หมวดย่อยที่เลือกได้ = เฉพาะของหมวดที่เลือกอยู่ (ถ้ายังไม่เลือกหมวด → ไม่มีให้เลือก)
-  const subOptions = categories.find((c) => c.categoryId === filters.categoryId)?.subCategories ?? [];
+  const subCategoryOptions = categories.find((category) => category.categoryId === filters.categoryId)?.subCategories ?? [];
 
-  const toggleGrade = (g: Grade) =>
-    set('grades', filters.grades.includes(g) ? filters.grades.filter((x) => x !== g) : [...filters.grades, g]);
+  const toggleGrade = (grade: Grade) =>
+    setField('grades', filters.grades.includes(grade) ? filters.grades.filter((selected) => selected !== grade) : [...filters.grades, grade]);
 
   return (
     <form
@@ -33,11 +33,11 @@ export default function FilterForm({ filters, categories, onChange, onSearch }: 
         <legend>ช่วงเวลา</legend>
         <label>
           วันที่เริ่มต้น
-          <input type="date" value={filters.dateFrom} onChange={(e) => set('dateFrom', e.target.value)} />
+          <input type="date" value={filters.dateFrom} onChange={(e) => setField('dateFrom', e.target.value)} />
         </label>
         <label>
           วันที่สิ้นสุด
-          <input type="date" value={filters.dateTo} onChange={(e) => set('dateTo', e.target.value)} />
+          <input type="date" value={filters.dateTo} onChange={(e) => setField('dateTo', e.target.value)} />
         </label>
       </fieldset>
 
@@ -52,8 +52,8 @@ export default function FilterForm({ filters, categories, onChange, onSearch }: 
             onChange={(e) => onChange({ ...filters, categoryId: e.target.value, subCategoryId: '' })}
           >
             <option value="">ทั้งหมด</option>
-            {categories.map((c) => (
-              <option key={c.categoryId} value={c.categoryId}>{c.categoryName}</option>
+            {categories.map((category) => (
+              <option key={category.categoryId} value={category.categoryId}>{category.categoryName}</option>
             ))}
           </select>
         </label>
@@ -62,11 +62,11 @@ export default function FilterForm({ filters, categories, onChange, onSearch }: 
           <select
             value={filters.subCategoryId}
             disabled={!filters.categoryId}
-            onChange={(e) => set('subCategoryId', e.target.value)}
+            onChange={(e) => setField('subCategoryId', e.target.value)}
           >
             <option value="">{filters.categoryId ? 'ทั้งหมด' : 'เลือกหมวดหมู่ก่อน'}</option>
-            {subOptions.map((s) => (
-              <option key={s.subCategoryId} value={s.subCategoryId}>{s.subCategoryName}</option>
+            {subCategoryOptions.map((subCategory) => (
+              <option key={subCategory.subCategoryId} value={subCategory.subCategoryId}>{subCategory.subCategoryName}</option>
             ))}
           </select>
         </label>
@@ -81,12 +81,12 @@ export default function FilterForm({ filters, categories, onChange, onSearch }: 
             type="text"
             placeholder="เช่น UNII2024"
             value={filters.orderId}
-            onChange={(e) => set('orderId', e.target.value)}
+            onChange={(e) => setField('orderId', e.target.value)}
           />
         </label>
         <label>
           รูปแบบการค้นหา
-          <select value={filters.orderIdMode} onChange={(e) => set('orderIdMode', e.target.value as Filters['orderIdMode'])}>
+          <select value={filters.orderIdMode} onChange={(e) => setField('orderIdMode', e.target.value as Filters['orderIdMode'])}>
             <option value="exact">ตรงทั้งหมด (exact)</option>
             <option value="contains">มีข้อความนี้ (contains)</option>
           </select>
@@ -99,19 +99,19 @@ export default function FilterForm({ filters, categories, onChange, onSearch }: 
         <div className="price-pair">
           <label>
             ราคาเริ่มต้น (บาท/กก.)
-            <input type="number" min="0" value={filters.priceMin} onChange={(e) => set('priceMin', e.target.value)} />
+            <input type="number" min="0" value={filters.priceMin} onChange={(e) => setField('priceMin', e.target.value)} />
           </label>
           <label>
             ราคาสุดท้าย (บาท/กก.)
-            <input type="number" min="0" value={filters.priceMax} onChange={(e) => set('priceMax', e.target.value)} />
+            <input type="number" min="0" value={filters.priceMax} onChange={(e) => setField('priceMax', e.target.value)} />
           </label>
         </div>
         {/* เกรด: ปุ่มกดเลือก/ยกเลิกได้หลายเกรด (ข้างใต้เป็น checkbox จริง) */}
         <div className="chips" role="group" aria-label="เกรด">
-          {GRADES.map((g) => (
-            <label key={g} className="chip">
-              <input type="checkbox" checked={filters.grades.includes(g)} onChange={() => toggleGrade(g)} />
-              <span>เกรด {g}</span>
+          {GRADES.map((grade) => (
+            <label key={grade} className="chip">
+              <input type="checkbox" checked={filters.grades.includes(grade)} onChange={() => toggleGrade(grade)} />
+              <span>เกรด {grade}</span>
             </label>
           ))}
         </div>
