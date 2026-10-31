@@ -5,6 +5,8 @@ interface Props {
   total: SummaryRow;
 }
 
+// การ์ดยอดรวมทุกหมวด 3 ใบ (ซื้อ / ขาย / คงเหลือ) + แถบสัดส่วนขายเทียบซื้อ
+// อ่านภาพรวมได้ก่อนลงรายละเอียดในตาราง ไม่มี state
 export default function SummaryCards({ total }: Props) {
   const isRemainingPositive = total.remaining.totalKg >= 0;
   const isRemainingMoneyPositive = total.remaining.totalBaht >= 0;

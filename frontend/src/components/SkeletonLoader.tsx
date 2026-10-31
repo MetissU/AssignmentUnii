@@ -1,3 +1,4 @@
+// โครงร่างจำลอง (การ์ด 3 ใบ + ตาราง) ระหว่างโหลดข้อมูลครั้งแรก ให้หน้าไม่ว่างและไม่กระโดดเมื่อข้อมูลมาถึง
 export default function SkeletonLoader() {
   return (
     <div className="skeleton-container" aria-busy="true" aria-label="กำลังโหลดข้อมูล">

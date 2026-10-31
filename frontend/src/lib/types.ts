@@ -1,6 +1,7 @@
 // ชนิดข้อมูลที่ตรงกับ response ของ backend (ดู backend/src/summary/summary.types.ts)
 // ความหมายของทุกฟิลด์: docs/data-dictionary.md
 
+export type TradeType = 'buy' | 'sell';
 export type Grade = 'A' | 'B' | 'C' | 'D';
 export const GRADES: Grade[] = ['A', 'B', 'C', 'D'];
 

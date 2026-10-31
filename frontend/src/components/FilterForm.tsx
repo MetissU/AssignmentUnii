@@ -1,72 +1,91 @@
 'use client';
 
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { CategoryOption, EMPTY_FILTERS, Filters, GRADES, Grade } from '@/lib/types';
 
 interface Props {
   filters: Filters;
   categories: CategoryOption[];
-  onChange: (next: Filters) => void;
-  onSearch: (filters?: Filters) => void;
+  onChange: (next: Filters) => void; // แก้ค่าในฟอร์ม (ยังไม่ค้นหา)
+  onSearch: (filtersOverride?: Filters) => void; // ค้นหา (ไม่ส่งค่า = ใช้ค่าในฟอร์มปัจจุบัน)
   isLoading?: boolean;
 }
 
+/** วันที่ตามเวลาเครื่องผู้ใช้ เป็น YYYY-MM-DD (ไม่ใช้ toISOString เพราะเป็นเวลา UTC ทำให้วันเลื่อนในไทยช่วงก่อน 07:00) */
+function toLocalYmd(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// ป้ายตัวกรองที่ใช้งานอยู่ 1 อัน พร้อมปุ่ม ✕ เอาออก
+function FilterTag({ children, onRemove }: { children: ReactNode; onRemove: () => void }) {
+  return (
+    <span className="filter-tag">
+      {children}
+      <button type="button" onClick={onRemove} aria-label="เอาตัวกรองนี้ออก">
+        ✕
+      </button>
+    </span>
+  );
+}
+
+// ฟอร์ม filter: ไม่เรียก API เอง — แค่แก้ค่าใน state ของหน้าหลัก แล้วแจ้งเมื่อกดค้นหา
+// โครง: หัวแผง (พับ/ขยาย) → ป้ายตัวกรองที่ใช้งาน → ฟอร์ม 4 กลุ่ม → ปุ่มค้นหา/ล้าง
 export default function FilterForm({ filters, categories, onChange, onSearch, isLoading = false }: Props) {
   const [isExpanded, setIsExpanded] = useState(true);
 
-  const setField = <K extends keyof Filters>(key: K, value: Filters[K]) =>
-    onChange({ ...filters, [key]: value });
+  const setField = <K extends keyof Filters>(key: K, value: Filters[K]) => onChange({ ...filters, [key]: value });
 
   // หมวดย่อยที่เลือกได้ = เฉพาะของหมวดที่เลือกอยู่
-  const subCategoryOptions =
-    categories.find((c) => c.categoryId === filters.categoryId)?.subCategories ?? [];
+  const selectedCategory = categories.find((category) => category.categoryId === filters.categoryId);
+  const subCategoryOptions = selectedCategory?.subCategories ?? [];
+  const selectedSubCategoryName = subCategoryOptions.find(
+    (subCategory) => subCategory.subCategoryId === filters.subCategoryId,
+  )?.subCategoryName;
 
-  const toggleGrade = (grade: Grade) => {
-    const nextGrades = filters.grades.includes(grade)
-      ? filters.grades.filter((g) => g !== grade)
-      : [...filters.grades, grade];
-    setField('grades', nextGrades);
+  const toggleGrade = (grade: Grade) =>
+    setField(
+      'grades',
+      filters.grades.includes(grade)
+        ? filters.grades.filter((selectedGrade) => selectedGrade !== grade)
+        : [...filters.grades, grade],
+    );
+
+  // ล้างทุกตัวกรองแล้วค้นหาใหม่ (ส่งค่าว่างไปตรงๆ เพราะ state ยังไม่อัปเดตทันในรอบนี้)
+  const resetAllFilters = () => {
+    onChange(EMPTY_FILTERS);
+    onSearch(EMPTY_FILTERS);
   };
 
-  const selectAllGrades = () => setField('grades', [...GRADES]);
-  const clearGrades = () => setField('grades', []);
-
-  // นับจำนวนตัวกรองที่กำลังใช้งานอยู่
-  const activeFiltersCount = [
-    Boolean(filters.dateFrom || filters.dateTo),
-    Boolean(filters.categoryId),
-    Boolean(filters.subCategoryId),
-    Boolean(filters.orderId),
-    Boolean(filters.priceMin || filters.priceMax),
-    filters.grades.length > 0,
-  ].filter(Boolean).length;
-
-  // ฟังก์ชันตั้งค่าวันด่วน (Date Presets)
-  const applyDatePreset = (daysAgo: number | null) => {
-    if (daysAgo === null) {
+  // ปุ่มวันด่วน: ย้อนหลัง N วันจนถึงวันนี้ (null = ล้างช่วงวัน)
+  const applyDatePreset = (daysBack: number | null) => {
+    if (daysBack === null) {
       onChange({ ...filters, dateFrom: '', dateTo: '' });
       return;
     }
     const today = new Date();
-    const from = new Date();
-    from.setDate(today.getDate() - daysAgo);
-
-    const formatYmd = (d: Date) => d.toISOString().split('T')[0];
-    onChange({
-      ...filters,
-      dateFrom: formatYmd(from),
-      dateTo: formatYmd(today),
-    });
+    const startDate = new Date();
+    startDate.setDate(today.getDate() - daysBack);
+    onChange({ ...filters, dateFrom: toLocalYmd(startDate), dateTo: toLocalYmd(today) });
   };
 
-  // ชื่อหมวดหมู่ที่เลือก (สำหรับป้ายตัวกรอง)
-  const selectedCategoryName = categories.find((c) => c.categoryId === filters.categoryId)?.categoryName;
-  const selectedSubCategoryName = subCategoryOptions.find((s) => s.subCategoryId === filters.subCategoryId)?.subCategoryName;
+  const hasDateFilter = Boolean(filters.dateFrom || filters.dateTo);
+  const hasPriceFilter = Boolean(filters.priceMin || filters.priceMax);
+  const activeFilterCount = [
+    hasDateFilter,
+    Boolean(filters.categoryId),
+    Boolean(filters.subCategoryId),
+    Boolean(filters.orderId),
+    hasPriceFilter,
+    filters.grades.length > 0,
+  ].filter(Boolean).length;
 
   return (
     <div className="filter-panel-card">
-      {/* ส่วนหัวของแผงตัวกรอง */}
-      <div className="filter-header" onClick={() => setIsExpanded(!isExpanded)}>
+      {/* หัวแผง: จำนวนตัวกรองที่ใช้ + ปุ่มพับ/ขยาย */}
+      <div className="filter-header">
         <div className="filter-header-left">
           <div className="filter-icon-circle">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -76,20 +95,20 @@ export default function FilterForm({ filters, categories, onChange, onSearch, is
           <div>
             <span className="filter-main-title">ตัวกรองข้อมูลค้นหา (Filters)</span>
             <span className="filter-summary-hint">
-              {activeFiltersCount > 0
-                ? `กำลังใช้งาน ${activeFiltersCount} เงื่อนไข`
+              {activeFilterCount > 0
+                ? `กำลังใช้งาน ${activeFilterCount} เงื่อนไข`
                 : 'เลือกเงื่อนไขเพื่อเจาะจงข้อมูลออเดอร์และหมวดสินค้า'}
             </span>
           </div>
         </div>
 
         <div className="filter-header-right">
-          {activeFiltersCount > 0 && (
-            <span className="active-badge">{activeFiltersCount} ตัวกรอง</span>
-          )}
+          {activeFilterCount > 0 && <span className="active-badge">{activeFilterCount} ตัวกรอง</span>}
           <button
             type="button"
             className="toggle-collapse-btn"
+            onClick={() => setIsExpanded(!isExpanded)}
+            aria-expanded={isExpanded}
             aria-label={isExpanded ? 'ย่อตัวกรอง' : 'ขยายตัวกรอง'}
           >
             <svg
@@ -108,109 +127,41 @@ export default function FilterForm({ filters, categories, onChange, onSearch, is
         </div>
       </div>
 
-      {/* แถบ Active Filter Tags (เมื่อมีตัวกรองถูกเลือก) */}
-      {activeFiltersCount > 0 && (
+      {/* ป้ายตัวกรองที่ใช้งานอยู่ (แสดงค่าในฟอร์ม กด ✕ เพื่อเอาออก แล้วกดค้นหาเพื่อดูผลใหม่) */}
+      {activeFilterCount > 0 && (
         <div className="active-filters-bar">
           <span className="active-label">ตัวกรองที่ใช้งาน:</span>
           <div className="active-tags-list">
-            {(filters.dateFrom || filters.dateTo) && (
-              <span className="filter-tag">
+            {hasDateFilter && (
+              <FilterTag onRemove={() => applyDatePreset(null)}>
                 📅 {filters.dateFrom || '...'} ถึง {filters.dateTo || '...'}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onChange({ ...filters, dateFrom: '', dateTo: '' });
-                  }}
-                >
-                  ✕
-                </button>
-              </span>
+              </FilterTag>
             )}
-
             {filters.categoryId && (
-              <span className="filter-tag">
-                📁 หมวด: {selectedCategoryName || filters.categoryId}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onChange({ ...filters, categoryId: '', subCategoryId: '' });
-                  }}
-                >
-                  ✕
-                </button>
-              </span>
+              <FilterTag onRemove={() => onChange({ ...filters, categoryId: '', subCategoryId: '' })}>
+                📁 หมวด: {selectedCategory?.categoryName ?? filters.categoryId}
+              </FilterTag>
             )}
-
             {filters.subCategoryId && (
-              <span className="filter-tag">
-                📂 ย่อย: {selectedSubCategoryName || filters.subCategoryId}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setField('subCategoryId', '');
-                  }}
-                >
-                  ✕
-                </button>
-              </span>
+              <FilterTag onRemove={() => setField('subCategoryId', '')}>
+                📂 ย่อย: {selectedSubCategoryName ?? filters.subCategoryId}
+              </FilterTag>
             )}
-
             {filters.orderId && (
-              <span className="filter-tag">
+              <FilterTag onRemove={() => setField('orderId', '')}>
                 🏷️ ออเดอร์: {filters.orderId} ({filters.orderIdMode})
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setField('orderId', '');
-                  }}
-                >
-                  ✕
-                </button>
-              </span>
+              </FilterTag>
             )}
-
-            {(filters.priceMin || filters.priceMax) && (
-              <span className="filter-tag">
+            {hasPriceFilter && (
+              <FilterTag onRemove={() => onChange({ ...filters, priceMin: '', priceMax: '' })}>
                 💰 ราคา: {filters.priceMin || '0'} - {filters.priceMax || '∞'} บ./กก.
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onChange({ ...filters, priceMin: '', priceMax: '' });
-                  }}
-                >
-                  ✕
-                </button>
-              </span>
+              </FilterTag>
             )}
-
             {filters.grades.length > 0 && (
-              <span className="filter-tag">
-                ⭐ เกรด: {filters.grades.join(', ')}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setField('grades', []);
-                  }}
-                >
-                  ✕
-                </button>
-              </span>
+              <FilterTag onRemove={() => setField('grades', [])}>⭐ เกรด: {filters.grades.join(', ')}</FilterTag>
             )}
 
-            <button
-              type="button"
-              className="clear-all-tag-btn"
-              onClick={() => {
-                onChange(EMPTY_FILTERS);
-                onSearch(EMPTY_FILTERS);
-              }}
-            >
+            <button type="button" className="clear-all-tag-btn" onClick={resetAllFilters}>
               ล้างทั้งหมด
             </button>
           </div>
@@ -221,8 +172,8 @@ export default function FilterForm({ filters, categories, onChange, onSearch, is
       {isExpanded && (
         <form
           className="filters-content"
-          onSubmit={(e) => {
-            e.preventDefault();
+          onSubmit={(event) => {
+            event.preventDefault();
             onSearch();
           }}
         >
@@ -249,7 +200,7 @@ export default function FilterForm({ filters, categories, onChange, onSearch, is
                 <button type="button" className="preset-pill" onClick={() => applyDatePreset(30)}>
                   30 วัน
                 </button>
-                {(filters.dateFrom || filters.dateTo) && (
+                {hasDateFilter && (
                   <button type="button" className="preset-pill clear" onClick={() => applyDatePreset(null)}>
                     ล้างวัน
                   </button>
@@ -259,24 +210,16 @@ export default function FilterForm({ filters, categories, onChange, onSearch, is
               <div className="two-cols">
                 <label>
                   <span className="field-label">วันที่เริ่มต้น</span>
-                  <input
-                    type="date"
-                    value={filters.dateFrom}
-                    onChange={(e) => setField('dateFrom', e.target.value)}
-                  />
+                  <input type="date" value={filters.dateFrom} onChange={(event) => setField('dateFrom', event.target.value)} />
                 </label>
                 <label>
                   <span className="field-label">วันที่สิ้นสุด</span>
-                  <input
-                    type="date"
-                    value={filters.dateTo}
-                    onChange={(e) => setField('dateTo', e.target.value)}
-                  />
+                  <input type="date" value={filters.dateTo} onChange={(event) => setField('dateTo', event.target.value)} />
                 </label>
               </div>
             </fieldset>
 
-            {/* กลุ่ม 2: หมวดหมู่สินค้า */}
+            {/* กลุ่ม 2: หมวดหมู่สินค้า (เปลี่ยนหมวด → ล้างหมวดย่อย) */}
             <fieldset className="filter-group">
               <legend>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -289,12 +232,12 @@ export default function FilterForm({ filters, categories, onChange, onSearch, is
                 <span className="field-label">หมวดหมู่หลัก</span>
                 <select
                   value={filters.categoryId}
-                  onChange={(e) => onChange({ ...filters, categoryId: e.target.value, subCategoryId: '' })}
+                  onChange={(event) => onChange({ ...filters, categoryId: event.target.value, subCategoryId: '' })}
                 >
                   <option value="">ทั้งหมด ({categories.length} หมวด)</option>
-                  {categories.map((c) => (
-                    <option key={c.categoryId} value={c.categoryId}>
-                      {c.categoryName} ({c.categoryId})
+                  {categories.map((category) => (
+                    <option key={category.categoryId} value={category.categoryId}>
+                      {category.categoryName} ({category.categoryId})
                     </option>
                   ))}
                 </select>
@@ -307,12 +250,12 @@ export default function FilterForm({ filters, categories, onChange, onSearch, is
                 <select
                   value={filters.subCategoryId}
                   disabled={!filters.categoryId}
-                  onChange={(e) => setField('subCategoryId', e.target.value)}
+                  onChange={(event) => setField('subCategoryId', event.target.value)}
                 >
                   <option value="">{filters.categoryId ? 'ทั้งหมดในหมวดนี้' : '← เลือกหมวดหมู่หลักก่อน'}</option>
-                  {subCategoryOptions.map((s) => (
-                    <option key={s.subCategoryId} value={s.subCategoryId}>
-                      {s.subCategoryName} ({s.subCategoryId})
+                  {subCategoryOptions.map((subCategory) => (
+                    <option key={subCategory.subCategoryId} value={subCategory.subCategoryId}>
+                      {subCategory.subCategoryName} ({subCategory.subCategoryId})
                     </option>
                   ))}
                 </select>
@@ -338,10 +281,10 @@ export default function FilterForm({ filters, categories, onChange, onSearch, is
                     type="text"
                     placeholder="เช่น UNII2024 หรือ CUNII"
                     value={filters.orderId}
-                    onChange={(e) => setField('orderId', e.target.value)}
+                    onChange={(event) => setField('orderId', event.target.value)}
                   />
                   {filters.orderId && (
-                    <button type="button" className="inline-clear" onClick={() => setField('orderId', '')}>
+                    <button type="button" className="inline-clear" onClick={() => setField('orderId', '')} aria-label="ล้างเลขออเดอร์">
                       ✕
                     </button>
                   )}
@@ -352,7 +295,7 @@ export default function FilterForm({ filters, categories, onChange, onSearch, is
                 <span className="field-label">รูปแบบการจับคู่</span>
                 <select
                   value={filters.orderIdMode}
-                  onChange={(e) => setField('orderIdMode', e.target.value as Filters['orderIdMode'])}
+                  onChange={(event) => setField('orderIdMode', event.target.value as Filters['orderIdMode'])}
                 >
                   <option value="exact">ตรงเป๊ะทั้งหมด (Exact Match)</option>
                   <option value="contains">มีข้อความนี้ (Contains Match)</option>
@@ -360,7 +303,7 @@ export default function FilterForm({ filters, categories, onChange, onSearch, is
               </label>
             </fieldset>
 
-            {/* กลุ่ม 4: ราคา & เกรด */}
+            {/* กลุ่ม 4: ช่วงราคา + เกรด */}
             <fieldset className="filter-group">
               <legend>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -378,7 +321,7 @@ export default function FilterForm({ filters, categories, onChange, onSearch, is
                     min="0"
                     placeholder="0"
                     value={filters.priceMin}
-                    onChange={(e) => setField('priceMin', e.target.value)}
+                    onChange={(event) => setField('priceMin', event.target.value)}
                   />
                 </label>
                 <label>
@@ -388,7 +331,7 @@ export default function FilterForm({ filters, categories, onChange, onSearch, is
                     min="0"
                     placeholder="ไม่จำกัด"
                     value={filters.priceMax}
-                    onChange={(e) => setField('priceMax', e.target.value)}
+                    onChange={(event) => setField('priceMax', event.target.value)}
                   />
                 </label>
               </div>
@@ -397,26 +340,23 @@ export default function FilterForm({ filters, categories, onChange, onSearch, is
                 <div className="grade-header-row">
                   <span className="field-label">เลือกเกรดสินค้า</span>
                   <div className="grade-shortcuts">
-                    <button type="button" onClick={selectAllGrades}>
+                    <button type="button" onClick={() => setField('grades', [...GRADES])}>
                       ทั้งหมด
                     </button>
                     <span>•</span>
-                    <button type="button" onClick={clearGrades}>
+                    <button type="button" onClick={() => setField('grades', [])}>
                       ล้าง
                     </button>
                   </div>
                 </div>
 
+                {/* ปุ่มเกรด: ข้างใต้เป็น checkbox จริง จึงใช้คีย์บอร์ด/screen reader ได้ */}
                 <div className="grade-chips" role="group" aria-label="เกรดสินค้า">
                   {GRADES.map((grade) => {
                     const isSelected = filters.grades.includes(grade);
                     return (
                       <label key={grade} className={`grade-chip ${isSelected ? 'active' : ''}`}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleGrade(grade)}
-                        />
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleGrade(grade)} />
                         <span className="chip-indicator"></span>
                         <span className="chip-text">เกรด {grade}</span>
                       </label>
@@ -427,7 +367,7 @@ export default function FilterForm({ filters, categories, onChange, onSearch, is
             </fieldset>
           </div>
 
-          {/* แถบปุ่ม Action ค้นหา และ ล้างค่า */}
+          {/* ปุ่มค้นหา / ล้างค่า */}
           <div className="filter-actions-bar">
             <div className="actions-left">
               <span className="actions-tip">
@@ -436,14 +376,7 @@ export default function FilterForm({ filters, categories, onChange, onSearch, is
             </div>
 
             <div className="actions-right">
-              <button
-                type="button"
-                className="btn-reset"
-                onClick={() => {
-                  onChange(EMPTY_FILTERS);
-                  onSearch(EMPTY_FILTERS);
-                }}
-              >
+              <button type="button" className="btn-reset" onClick={resetAllFilters}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
                   <path d="M3 3v5h5"></path>

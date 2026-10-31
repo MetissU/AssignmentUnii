@@ -1,21 +1,30 @@
 'use client';
 
-import { useState } from 'react';
-import { formatNumber, formatPriceRange } from '@/lib/format';
+import { useCallback, useState } from 'react';
 import { exportSummaryToCsv } from '@/lib/exportCsv';
-import { CategorySummary, GRADES, SideTotals, SummaryResponse, SummaryRow } from '@/lib/types';
+import { formatNumber, formatPriceRange } from '@/lib/format';
+import { CategorySummary, GRADES, SideTotals, SummaryResponse, SummaryRow, TradeType } from '@/lib/types';
 import OrderIdsModal from './OrderIdsModal';
 
 interface Props {
   data: SummaryResponse;
-  isLoading: boolean;
+  isLoading: boolean; // กำลังโหลดผลใหม่ → ตารางเดิมจางลงแต่ไม่หายไป
 }
+
+// ข้อมูลของหน้าต่างเลขออเดอร์ที่เปิดอยู่ (null = ปิด)
+interface OpenOrderList {
+  title: string;
+  orderIds: string[];
+  tradeType: TradeType;
+}
+
+type OpenOrderListHandler = (title: string, orderIds: string[], tradeType: TradeType) => void;
+
+// ---------- เซลล์ย่อย ----------
 
 // เซลล์ตัวเลข: ชิดขวา, ค่า 0 จางลง, ค่าติดลบเด่นชัด
 function NumberCell({ value, isRemainingMoney = false }: { value: number; isRemainingMoney?: boolean }) {
-  if (value === 0) {
-    return <td className="cell-num cell-zero">0</td>;
-  }
+  if (value === 0) return <td className="cell-num cell-zero">0</td>;
   if (value < 0) {
     return (
       <td className="cell-num cell-negative">
@@ -23,31 +32,25 @@ function NumberCell({ value, isRemainingMoney = false }: { value: number; isRema
       </td>
     );
   }
-  return (
-    <td className={`cell-num ${isRemainingMoney ? 'cell-profit' : ''}`}>
-      {formatNumber(value)}
-    </td>
-  );
+  return <td className={`cell-num ${isRemainingMoney ? 'cell-profit' : ''}`}>{formatNumber(value)}</td>;
 }
 
-// คอลัมน์ 8 ช่องของ 1 ฝั่ง (ซื้อ หรือ ขาย)
+// 8 คอลัมน์ของ 1 ฝั่ง (ซื้อ หรือ ขาย)
 function SideCells({
   side,
-  type,
-  itemTitle,
-  onOpenOrderModal,
+  tradeType,
+  rowTitle,
+  onOpenOrderList,
 }: {
   side: SideTotals;
-  type: 'buy' | 'sell';
-  itemTitle: string;
-  onOpenOrderModal: (title: string, orderIds: string[], type: 'buy' | 'sell') => void;
+  tradeType: TradeType;
+  rowTitle: string;
+  onOpenOrderList: OpenOrderListHandler;
 }) {
   return (
     <>
       <NumberCell value={side.totalKg} />
-      <td className="cell-num cell-price">
-        {formatPriceRange(side.minPricePerKg, side.maxPricePerKg)}
-      </td>
+      <td className="cell-num cell-price">{formatPriceRange(side.minPricePerKg, side.maxPricePerKg)}</td>
       {GRADES.map((grade) => (
         <NumberCell key={grade} value={side.kgByGrade[grade]} />
       ))}
@@ -57,8 +60,8 @@ function SideCells({
         ) : (
           <button
             type="button"
-            className={`order-tag-btn ${type}`}
-            onClick={() => onOpenOrderModal(itemTitle, side.orderIds, type)}
+            className={`order-tag-btn ${tradeType}`}
+            onClick={() => onOpenOrderList(rowTitle, side.orderIds, tradeType)}
             title="คลิกเพื่อดูและคัดลอกเลขออเดอร์ทั้งหมด"
           >
             <span className="order-icon">🏷️</span>
@@ -72,38 +75,32 @@ function SideCells({
 }
 
 // 1 แถวของข้อมูล: ชื่อ | ซื้อ (8) | ขาย (8) | คงเหลือ (2)
+// แถวหมวดหมู่มีปุ่มพับ/ขยาย ส่วนแถวหมวดย่อยมีจุดนำหน้า
 function SummaryTableRow({
   name,
   row,
-  className,
-  isCategory = false,
-  isExpanded = true,
-  onToggleExpand,
-  subCount = 0,
-  onOpenOrderModal,
+  onOpenOrderList,
+  category,
 }: {
   name: string;
   row: SummaryRow;
-  className?: string;
-  isCategory?: boolean;
-  isExpanded?: boolean;
-  onToggleExpand?: () => void;
-  subCount?: number;
-  onOpenOrderModal: (title: string, orderIds: string[], type: 'buy' | 'sell') => void;
+  onOpenOrderList: OpenOrderListHandler;
+  category?: { isExpanded: boolean; onToggle: () => void; subCategoryCount: number }; // มีเฉพาะแถวหมวดหมู่
 }) {
   return (
-    <tr className={`${className || ''} ${isCategory ? 'row-category' : 'row-subcategory'}`}>
+    <tr className={category ? 'row-category' : 'row-subcategory'}>
       <th scope="row" className="cell-name-sticky">
         <div className="name-wrapper">
-          {isCategory && onToggleExpand ? (
+          {category ? (
             <button
               type="button"
               className="expand-chevron-btn"
-              onClick={onToggleExpand}
-              aria-label={isExpanded ? 'พับหมวดหมู่' : 'ขยายหมวดหมู่'}
+              onClick={category.onToggle}
+              aria-label={category.isExpanded ? 'พับหมวดหมู่' : 'ขยายหมวดหมู่'}
+              aria-expanded={category.isExpanded}
             >
               <svg
-                className={`chevron-svg ${isExpanded ? 'rotated' : ''}`}
+                className={`chevron-svg ${category.isExpanded ? 'rotated' : ''}`}
                 width="14"
                 height="14"
                 viewBox="0 0 24 24"
@@ -122,119 +119,87 @@ function SummaryTableRow({
             {name}
           </span>
 
-          {isCategory && subCount > 0 && (
-            <span className="sub-count-tag">{subCount} รายการ</span>
+          {category && category.subCategoryCount > 0 && (
+            <span className="sub-count-tag">{category.subCategoryCount} รายการ</span>
           )}
         </div>
       </th>
 
-      {/* ฝั่งซื้อ 8 คอลัมน์ */}
-      <SideCells side={row.buy} type="buy" itemTitle={name} onOpenOrderModal={onOpenOrderModal} />
+      <SideCells side={row.buy} tradeType="buy" rowTitle={name} onOpenOrderList={onOpenOrderList} />
+      <SideCells side={row.sell} tradeType="sell" rowTitle={name} onOpenOrderList={onOpenOrderList} />
 
-      {/* ฝั่งขาย 8 คอลัมน์ */}
-      <SideCells side={row.sell} type="sell" itemTitle={name} onOpenOrderModal={onOpenOrderModal} />
-
-      {/* ฝั่งคงเหลือ 2 คอลัมน์ */}
       <NumberCell value={row.remaining.totalKg} />
       <NumberCell value={row.remaining.totalBaht} isRemainingMoney />
     </tr>
   );
 }
 
-// หัวคอลัมน์ของ 1 ฝั่ง (ซื้อ / ขาย)
-function SideHeaderCells({ type }: { type: 'buy' | 'sell' }) {
+// หัวคอลัมน์ของ 1 ฝั่ง (ซื้อ / ขาย ใช้ชุดเดียวกัน)
+function SideHeaderCells({ tradeType }: { tradeType: TradeType }) {
   return (
     <>
-      <th className={`sub-th ${type}`}>จำนวน (กก.)</th>
-      <th className={`sub-th ${type}`}>ราคา (บ./กก.)</th>
+      <th className={`sub-th ${tradeType}`}>จำนวน (กก.)</th>
+      <th className={`sub-th ${tradeType}`}>ราคา (บ./กก.)</th>
       {GRADES.map((grade) => (
-        <th key={grade} className={`sub-th ${type} th-grade`}>
+        <th key={grade} className={`sub-th ${tradeType} th-grade`}>
           เกรด {grade}
         </th>
       ))}
-      <th className={`sub-th ${type} th-orders`}>เลขออเดอร์</th>
-      <th className={`sub-th ${type}`}>ยอดรวม (บาท)</th>
+      <th className={`sub-th ${tradeType} th-orders`}>เลขออเดอร์</th>
+      <th className={`sub-th ${tradeType}`}>ยอดรวม (บาท)</th>
     </>
   );
 }
 
-export default function SummaryTable({ data, isLoading }: Props) {
-  // ควบคุมการพับ/ขยายของแต่ละหมวดหมู่ (เริ่มต้นให้ขยายทั้งหมด)
-  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
-  // สถานะ Modal สำหรับดูเลขออเดอร์
-  const [modalState, setModalState] = useState<{
-    isOpen: boolean;
-    title: string;
-    subTitle: string;
-    orderIds: string[];
-    type: 'buy' | 'sell';
-  }>({
-    isOpen: false,
-    title: '',
-    subTitle: '',
-    orderIds: [],
-    type: 'buy',
-  });
+// ค้นหาชื่อในตาราง: หมวดที่ชื่อตรง → แสดงทุกหมวดย่อย, ไม่ตรง → แสดงเฉพาะหมวดย่อยที่ชื่อตรง
+// (ตัวเลขของแถวหมวดหมู่ยังเป็นยอดทั้งหมวดเสมอ เพราะคำนวณมาจาก API)
+function filterCategoriesByName(categories: CategorySummary[], searchText: string): CategorySummary[] {
+  const term = searchText.trim().toLowerCase();
+  if (!term) return categories;
 
-  // ค้นหาข้อความแบบเรียลไทม์ในตาราง
+  return categories.flatMap((category) => {
+    if (category.categoryName.toLowerCase().includes(term)) return [category];
+    const matchedSubCategories = category.subCategories.filter((subCategory) =>
+      subCategory.subCategoryName.toLowerCase().includes(term),
+    );
+    return matchedSubCategories.length > 0 ? [{ ...category, subCategories: matchedSubCategories }] : [];
+  });
+}
+
+// ---------- ตารางหลัก ----------
+
+export default function SummaryTable({ data, isLoading }: Props) {
+  const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<Set<string>>(new Set()); // เริ่มต้นขยายทุกหมวด
+  const [openOrderList, setOpenOrderList] = useState<OpenOrderList | null>(null);
   const [tableSearch, setTableSearch] = useState('');
 
-  const toggleCategory = (categoryId: string) => {
-    setCollapsedCategories((prev) => ({
-      ...prev,
-      [categoryId]: !prev[categoryId],
-    }));
-  };
-
-  const expandAll = () => setCollapsedCategories({});
-  const collapseAll = () => {
-    const allCollapsed: Record<string, boolean> = {};
-    data.categories.forEach((c) => {
-      allCollapsed[c.categoryId] = true;
+  const toggleCategory = (categoryId: string) =>
+    setCollapsedCategoryIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(categoryId)) next.delete(categoryId);
+      else next.add(categoryId);
+      return next;
     });
-    setCollapsedCategories(allCollapsed);
-  };
+  const expandAll = () => setCollapsedCategoryIds(new Set());
+  const collapseAll = () => setCollapsedCategoryIds(new Set(data.categories.map((category) => category.categoryId)));
 
-  const openOrderModal = (title: string, orderIds: string[], type: 'buy' | 'sell') => {
-    setModalState({
-      isOpen: true,
-      title,
-      subTitle: `รายการเลขออเดอร์ฝั่ง${type === 'buy' ? 'ซื้อ' : 'ขาย'}ทั้งหมด`,
-      orderIds,
-      type,
-    });
-  };
+  const showOrderList: OpenOrderListHandler = (title, orderIds, tradeType) =>
+    setOpenOrderList({ title, orderIds, tradeType });
+  const closeOrderList = useCallback(() => setOpenOrderList(null), []);
 
-  const totalSubCategoriesCount = data.categories.reduce(
-    (acc, curr) => acc + curr.subCategories.length,
-    0
-  );
-
-  // กรองหมวดหมู่/หมวดย่อยตาม tableSearch ถ้ามีการกรอก
-  const filteredCategories = data.categories.map((cat) => {
-    if (!tableSearch.trim()) return cat;
-    const term = tableSearch.toLowerCase();
-    const isCatMatch = cat.categoryName.toLowerCase().includes(term);
-    const matchedSubs = cat.subCategories.filter((sub) =>
-      sub.subCategoryName.toLowerCase().includes(term)
-    );
-    return {
-      ...cat,
-      subCategories: isCatMatch ? cat.subCategories : matchedSubs,
-      isMatch: isCatMatch || matchedSubs.length > 0,
-    };
-  }).filter((cat) => !tableSearch.trim() || (cat as any).isMatch);
+  const visibleCategories = filterCategoriesByName(data.categories, tableSearch);
+  const visibleSubCategoryCount = visibleCategories.reduce((sum, category) => sum + category.subCategories.length, 0);
 
   return (
     <div className="table-section-container">
-      {/* แถบควบคุมตาราง (Toolbar) */}
+      {/* แถบควบคุมตาราง: จำนวนที่แสดง, ค้นหาในตาราง, พับ/ขยาย, ส่งออก CSV */}
       <div className="table-toolbar">
         <div className="toolbar-left">
           <div className="table-stat-badge">
             <span className="dot-active"></span>
             <span>
-              แสดง <strong>{filteredCategories.length}</strong> หมวดหมู่ (
-              <strong>{totalSubCategoriesCount}</strong> หมวดหมู่ย่อย)
+              แสดง <strong>{visibleCategories.length}</strong> หมวดหมู่ (<strong>{visibleSubCategoryCount}</strong>{' '}
+              หมวดหมู่ย่อย)
             </span>
           </div>
 
@@ -246,11 +211,12 @@ export default function SummaryTable({ data, isLoading }: Props) {
             <input
               type="text"
               placeholder="ค้นหาชื่อสินค้าในตาราง..."
+              aria-label="ค้นหาชื่อสินค้าในตาราง"
               value={tableSearch}
-              onChange={(e) => setTableSearch(e.target.value)}
+              onChange={(event) => setTableSearch(event.target.value)}
             />
             {tableSearch && (
-              <button type="button" className="clear-quick-search" onClick={() => setTableSearch('')}>
+              <button type="button" className="clear-quick-search" onClick={() => setTableSearch('')} aria-label="ล้างคำค้นหา">
                 ✕
               </button>
             )}
@@ -284,16 +250,13 @@ export default function SummaryTable({ data, isLoading }: Props) {
         </div>
       </div>
 
-      {/* กรอบตารางแบบ Responsive Scroll พร้อม Sticky Headers */}
+      {/* กรอบตาราง: เลื่อนได้ในตัว หัวตาราง/คอลัมน์ชื่อ/แถวรวม ค้างอยู่กับที่ */}
       <div className={`table-scroll-viewport ${isLoading ? 'dimmed' : ''}`} aria-busy={isLoading}>
         <table className="master-summary-table">
-          <caption className="sr-only">
-            ตารางสรุปยอดซื้อ ขาย และคงเหลือ แยกตามหมวดหมู่และหมวดหมู่ย่อย
-          </caption>
+          <caption className="sr-only">ตารางสรุปยอดซื้อ ขาย และคงเหลือ แยกตามหมวดหมู่และหมวดหมู่ย่อย</caption>
 
-          {/* หัวตาราง 2 แถว */}
           <thead>
-            {/* แถวที่ 1: กลุ่มหลัก */}
+            {/* แถวหัวที่ 1: กลุ่มคอลัมน์ */}
             <tr className="header-group-row">
               <th rowSpan={2} className="th-sticky-first">
                 <div className="first-header-box">
@@ -301,21 +264,18 @@ export default function SummaryTable({ data, isLoading }: Props) {
                   <span className="secondary-subtitle">ลำดับชั้นสินค้า</span>
                 </div>
               </th>
-
               <th colSpan={8} className="th-group th-buy-group">
                 <div className="group-header-content">
                   <span className="group-dot buy"></span>
                   <span className="group-name">ฝั่งซื้อ (Inbound Transactions)</span>
                 </div>
               </th>
-
               <th colSpan={8} className="th-group th-sell-group">
                 <div className="group-header-content">
                   <span className="group-dot sell"></span>
                   <span className="group-name">ฝั่งขาย (Outbound Transactions)</span>
                 </div>
               </th>
-
               <th colSpan={2} className="th-group th-remain-group">
                 <div className="group-header-content">
                   <span className="group-dot remain"></span>
@@ -324,48 +284,44 @@ export default function SummaryTable({ data, isLoading }: Props) {
               </th>
             </tr>
 
-            {/* แถวที่ 2: คอลัมน์ย่อย */}
+            {/* แถวหัวที่ 2: คอลัมน์ย่อย */}
             <tr className="header-sub-row">
-              <SideHeaderCells type="buy" />
-              <SideHeaderCells type="sell" />
+              <SideHeaderCells tradeType="buy" />
+              <SideHeaderCells tradeType="sell" />
               <th className="sub-th remain">กก. คงเหลือ</th>
               <th className="sub-th remain">เงินคงเหลือ (บ.)</th>
             </tr>
           </thead>
 
-          {/* เนื้อหาตาราง */}
-          <tbody>
-            {filteredCategories.map((category) => {
-              const isCollapsed = Boolean(collapsedCategories[category.categoryId]);
-              return (
-                <tbody key={category.categoryId} className="category-tbody-group">
-                  {/* แถวระดับหมวดหมู่หลัก */}
-                  <SummaryTableRow
-                    name={category.categoryName}
-                    row={category}
-                    isCategory
-                    isExpanded={!isCollapsed}
-                    onToggleExpand={() => toggleCategory(category.categoryId)}
-                    subCount={category.subCategories.length}
-                    onOpenOrderModal={openOrderModal}
-                  />
+          {/* 1 หมวดหมู่ = 1 <tbody> (แถวหมวด + แถวหมวดย่อย) ตารางมีหลาย <tbody> ได้ตามมาตรฐาน HTML */}
+          {visibleCategories.map((category) => {
+            const isExpanded = !collapsedCategoryIds.has(category.categoryId);
+            return (
+              <tbody key={category.categoryId} className="category-tbody-group">
+                <SummaryTableRow
+                  name={category.categoryName}
+                  row={category}
+                  onOpenOrderList={showOrderList}
+                  category={{
+                    isExpanded,
+                    onToggle: () => toggleCategory(category.categoryId),
+                    subCategoryCount: category.subCategories.length,
+                  }}
+                />
+                {isExpanded &&
+                  category.subCategories.map((subCategory) => (
+                    <SummaryTableRow
+                      key={subCategory.subCategoryId}
+                      name={subCategory.subCategoryName}
+                      row={subCategory}
+                      onOpenOrderList={showOrderList}
+                    />
+                  ))}
+              </tbody>
+            );
+          })}
 
-                  {/* แถวระดับหมวดหมู่ย่อย (จะแสดงถ้าหมวดหลักยังไม่ถูกพับ) */}
-                  {!isCollapsed &&
-                    category.subCategories.map((subCategory) => (
-                      <SummaryTableRow
-                        key={subCategory.subCategoryId}
-                        name={subCategory.subCategoryName}
-                        row={subCategory}
-                        onOpenOrderModal={openOrderModal}
-                      />
-                    ))}
-                </tbody>
-              );
-            })}
-          </tbody>
-
-          {/* แถวรวมทั้งหมดท้ายตาราง (Sticky Bottom) */}
+          {/* แถวรวมทั้งหมดท้ายตาราง */}
           <tfoot>
             <tr className="row-total-footer">
               <th scope="row" className="cell-name-sticky total-sticky">
@@ -374,21 +330,8 @@ export default function SummaryTable({ data, isLoading }: Props) {
                   <span className="total-label">รวมทั้งหมดทุกหมวด</span>
                 </div>
               </th>
-
-              <SideCells
-                side={data.total.buy}
-                type="buy"
-                itemTitle="รวมทั้งหมด (ฝั่งซื้อ)"
-                onOpenOrderModal={openOrderModal}
-              />
-
-              <SideCells
-                side={data.total.sell}
-                type="sell"
-                itemTitle="รวมทั้งหมด (ฝั่งขาย)"
-                onOpenOrderModal={openOrderModal}
-              />
-
+              <SideCells side={data.total.buy} tradeType="buy" rowTitle="รวมทั้งหมด (ฝั่งซื้อ)" onOpenOrderList={showOrderList} />
+              <SideCells side={data.total.sell} tradeType="sell" rowTitle="รวมทั้งหมด (ฝั่งขาย)" onOpenOrderList={showOrderList} />
               <NumberCell value={data.total.remaining.totalKg} />
               <NumberCell value={data.total.remaining.totalBaht} isRemainingMoney />
             </tr>
@@ -396,15 +339,15 @@ export default function SummaryTable({ data, isLoading }: Props) {
         </table>
       </div>
 
-      {/* Modal หน้าต่างดูเลขออเดอร์ทั้งหมด */}
-      <OrderIdsModal
-        isOpen={modalState.isOpen}
-        onClose={() => setModalState((prev) => ({ ...prev, isOpen: false }))}
-        title={modalState.title}
-        subTitle={modalState.subTitle}
-        orderIds={modalState.orderIds}
-        type={modalState.type}
-      />
+      {/* หน้าต่างเลขออเดอร์: render เฉพาะตอนเปิด */}
+      {openOrderList && (
+        <OrderIdsModal
+          title={openOrderList.title}
+          orderIds={openOrderList.orderIds}
+          tradeType={openOrderList.tradeType}
+          onClose={closeOrderList}
+        />
+      )}
     </div>
   );
 }

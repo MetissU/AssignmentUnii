@@ -9,13 +9,16 @@ import SummaryTable from '@/components/SummaryTable';
 import { fetchCategories, fetchSummary } from '@/lib/api';
 import { CategoryOption, EMPTY_FILTERS, Filters, SummaryResponse } from '@/lib/types';
 
+// หน้าเดียวของระบบ: แถบด้านบน → ฟอร์ม filter → การ์ดยอดรวม → ตารางสรุป → footer
+// state ทั้งหมดอยู่ที่นี่ component ลูกรับค่าผ่าน props และแจ้งกลับผ่าน callback
+// flow: เปิดหน้า → โหลดรายการหมวดหมู่ + สรุปทั้งหมด → ผู้ใช้แก้ฟอร์ม → กดค้นหา → โหลดสรุปใหม่
 export default function Home() {
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [categories, setCategories] = useState<CategoryOption[]>([]);
-  const [data, setData] = useState<SummaryResponse | null>(null);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS); // ค่าในฟอร์มตอนนี้
+  const [categories, setCategories] = useState<CategoryOption[]>([]); // ข้อมูล dropdown
+  const [data, setData] = useState<SummaryResponse | null>(null); // ผลสรุปที่แสดง
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [error, setError] = useState(''); // '' = ไม่มีข้อผิดพลาด
+  const [lastUpdated, setLastUpdated] = useState(''); // เวลาที่โหลดผลล่าสุด (แสดงที่แถบด้านบน)
 
   // โหลดผลสรุปตาม filter ที่ส่งมา
   const search = useCallback(async (searchFilters: Filters) => {
