@@ -195,6 +195,29 @@ SummaryResponse
 | `data` | `SummaryResponse \| null` | ผลสรุปที่แสดงอยู่ |
 | `isLoading` | boolean | กำลังโหลดผลอยู่ไหม |
 | `error` | string | ข้อความผิดพลาด (`''` = ไม่มี) |
+| `lastUpdated` | string | เวลาที่โหลดผลล่าสุด แสดงที่แถบด้านบน |
+
+### 7.3 State ภายใน component
+
+| Component | State | ชนิด | ความหมาย |
+|---|---|---|---|
+| `FilterForm` | `isExpanded` | boolean | แผงตัวกรองขยายอยู่ไหม |
+| `SummaryTable` | `collapsedCategoryIds` | `Set<string>` | `categoryId` ที่ถูกพับ (ว่าง = ขยายทุกหมวด) |
+| `SummaryTable` | `tableSearch` | string | คำค้นชื่อสินค้าในตาราง (กรองที่หน้าเว็บ ไม่เรียก API) |
+| `SummaryTable` | `openOrderList` | `{ title, orderIds, tradeType } | null` | หน้าต่างเลขออเดอร์ที่เปิดอยู่ (`null` = ปิด) |
+| `OrderIdsModal` | `searchTerm`, `isCopied` | string, boolean | คำค้นในหน้าต่าง และสถานะ "คัดลอกแล้ว" |
+
+### 7.4 ไฟล์ CSV ที่ส่งออก (`frontend/src/lib/exportCsv.ts`)
+
+1 แถว CSV = 1 แถวในตาราง เรียง หมวดหมู่ → หมวดย่อย (ชื่อเยื้อง 2 ช่อง) → แถว "รวมทั้งหมด"
+
+| คอลัมน์ | มาจาก |
+|---|---|
+| ระดับ | `หมวดหมู่หลัก` / `หมวดหมู่ย่อย` / `รวมทั้งหมด` |
+| หมวดหมู่ / หมวดหมู่ย่อย | `categoryName` / `subCategoryName` |
+| ซื้อ: จำนวน, ราคา, เกรด A–D, จำนวนออเดอร์, ยอดรวม | `buy.totalKg`, ช่วง `buy.minPricePerKg`–`maxPricePerKg`, `buy.kgByGrade`, จำนวน `buy.orderIds`, `buy.totalBaht` |
+| ขาย: (ชุดเดียวกับซื้อ) | `sell.*` |
+| คงเหลือ: จำนวน, เงิน | `remaining.totalKg`, `remaining.totalBaht` |
 
 ## 8. คำศัพท์ (ไทย ↔ ชื่อในระบบ)
 

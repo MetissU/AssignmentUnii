@@ -75,7 +75,7 @@ cd backend && npm test
 
 ```
 ├─ backend/    NestJS   (sync/ categories/ transactions/ summary/)
-├─ frontend/   Next.js  (หน้าเดียว: ฟอร์ม filter + ตาราง)
+├─ frontend/   Next.js  (หน้าเดียว: ฟอร์ม filter + การ์ดสรุป + ตาราง + ส่งออก CSV)
 ├─ docs/       เอกสาร
 └─ docker-compose.yml
 ```

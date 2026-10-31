@@ -30,11 +30,14 @@ backend/src/
    └─ summary.controller.ts      GET /summary
 
 frontend/src/
-├─ app/page.tsx                  หน้าเดียว: state + เรียก API
-├─ components/FilterForm.tsx     ฟอร์ม filter 4 กลุ่ม (ไม่เรียก API เอง)
-├─ components/SummaryCards.tsx   การ์ดยอดรวม ซื้อ/ขาย/คงเหลือ (ไม่มี state)
-├─ components/SummaryTable.tsx   ตาราง (ไม่มี state)
-└─ lib/api.ts, types.ts, format.ts  เรียก backend + ชนิดข้อมูล + จัดรูปแบบตัวเลข
+├─ app/page.tsx                  หน้าเดียว: state หลัก + เรียก API + แถบด้านบน/footer (โลโก้)
+├─ components/FilterForm.tsx     ฟอร์ม filter 4 กลุ่ม + ป้ายตัวกรองที่ใช้งาน + ปุ่มวันด่วน (ไม่เรียก API เอง)
+├─ components/SummaryCards.tsx   การ์ดยอดรวม ซื้อ/ขาย/คงเหลือ + แถบสัดส่วนขาย/ซื้อ (ไม่มี state)
+├─ components/SummaryTable.tsx   ตาราง + ค้นหาในตาราง + พับ/ขยายหมวด + ปุ่มส่งออก CSV
+├─ components/OrderIdsModal.tsx  หน้าต่างดู/ค้นหา/คัดลอกเลขออเดอร์ของ 1 เซลล์
+├─ components/SkeletonLoader.tsx โครงร่างระหว่างโหลดครั้งแรก
+└─ lib/api.ts, types.ts, format.ts, exportCsv.ts  เรียก backend + ชนิดข้อมูล + จัดรูปตัวเลข + สร้างไฟล์ CSV
+(โลโก้: frontend/public/unii-logo.png)
 ```
 
 ★ = ที่เก็บ logic ที่สำคัญ และมี unit test ครอบคลุม — **แยกเป็นฟังก์ชันบริสุทธิ์ตั้งใจ** เพื่อให้เทสและอ่านง่ายโดยไม่ต้องมี DB
@@ -66,6 +69,8 @@ cd backend && npm test        # unit test ของ normalize / buildMatch / bui
 | เพิ่ม/เปลี่ยนชื่อฟิลด์ | ทำตามกติกาการตั้งชื่อใน `data-dictionary.md` แล้วแก้ทั้ง backend, frontend และเอกสารในคราวเดียว |
 | เปลี่ยนสูตรคงเหลือ | `buildSummaryRow()` ใน `build-summary.ts` (+ แก้ `business-rules.md`) |
 | ต้นทางเปลี่ยนรูปแบบ JSON | `sync/source-types.ts` + `sync/normalize.ts` |
+| เพิ่มคอลัมน์ในไฟล์ CSV | `sideHeaders()` + `sideValues()` ใน `frontend/src/lib/exportCsv.ts` (ลำดับต้องตรงกัน) |
+| เปลี่ยนโลโก้ | แทนไฟล์ `frontend/public/unii-logo.png` (ชื่อเดิม) |
 | เปลี่ยนสีธีม/ระยะ | ตัวแปร CSS (design tokens) ที่หัวไฟล์ `frontend/src/app/globals.css` (`--primary`, `--secondary` …) |
 | เปลี่ยนฟอนต์ | `frontend/src/app/layout.tsx` (Noto Sans Thai ผ่าน `next/font/google`) |
 | เปลี่ยนที่อยู่ API | env `NEXT_PUBLIC_API_URL` (frontend), `SOURCE_API_BASE` (backend ต้นทาง) |
@@ -81,16 +86,23 @@ cd backend && npm test        # unit test ของ normalize / buildMatch / bui
 | `SOURCE_API_BASE` | backend | `https://apirecycle.unii.co.th` | API ต้นทาง |
 | `NEXT_PUBLIC_API_URL` | frontend | `http://localhost:3001` | API ที่เบราว์เซอร์เรียก (ฝังตอน build) |
 
-## 7. แนวทางออกแบบ UI
+## 7. หน้าเว็บมีอะไรบ้าง
 
-สไตล์ Minimalism แบบ dashboard ใช้สีธีมตามโจทย์ (`#4534f0` / `#b42996`) และฟอนต์ Noto Sans Thai
+Dashboard หน้าเดียว ใช้สีธีมตามโจทย์ (`#4534f0` / `#b42996`) ฟอนต์ Noto Sans Thai และโลโก้ Unii ที่แถบด้านบนและ footer
 
-- ฟอร์ม filter แบ่ง 4 กลุ่ม ทุกช่องมี label ที่มองเห็น; เกรดเป็นปุ่มกดเลือกหลายเกรด (ใช้ checkbox จริงข้างใต้)
-- การ์ดยอดรวม 3 ใบ อ่านภาพรวมก่อนลงตาราง
-- ตารางเลื่อนในกรอบของตัวเอง: หัวตาราง 2 แถว, คอลัมน์ชื่อ และแถวรวมทั้งหมดจะค้างไว้; ค่า 0 จาง, ค่าติดลบเป็นสีแดง; ตัวเลขใช้ตัวเลขแบบความกว้างเท่ากัน (tabular)
-- ระหว่างค้นหาใหม่ ตารางเดิมจางลงแทนที่จะหายไป (หน้าไม่กระโดด)
-- ปุ่ม/ช่องกรอกสูงอย่างน้อย 44px, มี focus ring, เคารพ `prefers-reduced-motion`
-- ยังไม่มี dark mode
+| ส่วน | ทำอะไร | ไฟล์ |
+|---|---|---|
+| แถบด้านบน | โลโก้, เวลาที่โหลดล่าสุด, ปุ่มรีเฟรช (ค้นหาด้วยค่าในฟอร์มปัจจุบัน) | `page.tsx` |
+| แผงตัวกรอง | 4 กลุ่ม (วันที่ / หมวดหมู่ / เลขออเดอร์ / ราคา+เกรด), ปุ่มวันด่วน วันนี้·7·30 วัน, ป้ายตัวกรองที่ใช้งาน กด ✕ เอาออกได้, พับ/ขยายแผงได้ | `FilterForm.tsx` |
+| การ์ดสรุป | ซื้อรวม / ขายรวม / คงเหลือ พร้อมจำนวนออเดอร์ และแถบสัดส่วนขายเทียบซื้อ (%) | `SummaryCards.tsx` |
+| ตาราง | หัว 2 แถว, คอลัมน์ชื่อและแถวรวมค้างไว้, พับ/ขยายรายหมวด, ค้นหาชื่อสินค้าในตาราง (กรองเฉพาะที่แสดง ไม่เรียก API), ค่า 0 จาง ค่าติดลบเด่น | `SummaryTable.tsx` |
+| เลขออเดอร์ | กดตัวเลขในคอลัมน์เลขออเดอร์ → หน้าต่างแสดงรายการ ค้นหาและคัดลอกได้ (Esc หรือคลิกนอกกรอบเพื่อปิด) | `OrderIdsModal.tsx` |
+| ส่งออก CSV | ดาวน์โหลดตารางตามผลค้นหาปัจจุบัน (UTF-8 BOM เปิดใน Excel ภาษาไทยได้) | `lib/exportCsv.ts` |
+| สถานะ | โหลดครั้งแรก = โครงร่าง (skeleton), ค้นหาใหม่ = ตารางเดิมจางลง, ผิดพลาด = การ์ดแดงพร้อมปุ่มลองใหม่, ไม่พบข้อมูล = การ์ดแนะนำพร้อมปุ่มล้างตัวกรอง | `page.tsx`, `SkeletonLoader.tsx` |
+
+- ป้ายตัวกรองแสดง "ค่าในฟอร์ม" ไม่ใช่ผลที่ค้นแล้ว: กด ✕ แล้วต้องกดค้นหาเพื่อดูผลใหม่ (ยกเว้นปุ่ม "ล้างทั้งหมด" ที่ค้นหาให้ทันที)
+- ปุ่มวันด่วนคิดวันตามเวลาเครื่องผู้ใช้ (ไม่ใช้ UTC กันวันเลื่อนช่วงก่อน 07:00)
+- ยังไม่มี dark mode และยังไม่รองรับ `prefers-reduced-motion`
 
 ## 8. ข้อจำกัดที่ทราบ (Known limitations)
 
@@ -98,6 +110,6 @@ cd backend && npm test        # unit test ของ normalize / buildMatch / bui
 - **ไม่มี authentication** — โจทย์ไม่ได้ระบุ
 - **Sync เป็นแบบ "เพิ่ม/อัปเดต" เท่านั้น** — ออเดอร์ที่ถูกลบที่ต้นทางจะไม่ถูกลบออกจาก DB
 - **`total` ใช้ค่าจากต้นทาง** ซึ่งไม่เท่ากับ ราคา × กก. เสมอไปในข้อมูลตัวอย่าง (ดู business-rules.md)
-- **ไม่มี test ระดับ end-to-end / component** — มีเฉพาะ unit test ของ logic หลัก; การตรวจ aggregation กับ MongoDB จริงทำด้วยมือ (ดูตาราง "ตรวจความถูกต้องกับข้อมูลจริง" ใน README)
+- **ไม่มี test ระดับ end-to-end / component** — รวมถึงฟีเจอร์หน้าเว็บ (พับ/ขยาย, ค้นหาในตาราง, CSV, หน้าต่างออเดอร์) ตรวจด้วยมือเท่านั้น — มีเฉพาะ unit test ของ logic หลัก; การตรวจ aggregation กับ MongoDB จริงทำด้วยมือ (ดูตาราง "ตรวจความถูกต้องกับข้อมูลจริง" ใน README)
 - **ฟอนต์ดาวน์โหลดตอน build** (`next/font/google`) — build frontend ครั้งแรกต้องออกอินเทอร์เน็ต
 - เก็บเวลา `orderFinishedTime` ไม่ได้ใช้ (โจทย์ filter ระดับวัน)
