@@ -1010,6 +1010,39 @@ html, body {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--slate-600);
+}
+
+.table-sort select {
+  height: 34px;
+  padding: 4px 8px;
+  font-size: 0.825rem;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-sm);
+  background: var(--slate-50);
+  color: var(--slate-800);
+  cursor: pointer;
+}
+
+.table-sort select:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+.table-sort .tool-btn:disabled {
+  color: var(--slate-300);
+  cursor: not-allowed;
+  background: none;
+  box-shadow: none;
 }
 
 .accordion-toggle-group {

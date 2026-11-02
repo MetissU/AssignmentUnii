@@ -204,6 +204,8 @@ SummaryResponse
 | `FilterForm` | `isExpanded` | boolean | แผงตัวกรองขยายอยู่ไหม |
 | `SummaryTable` | `collapsedCategoryIds` | `Set<string>` | `categoryId` ที่ถูกพับ (ว่าง = ขยายทุกหมวด) |
 | `SummaryTable` | `tableSearch` | string | คำค้นชื่อสินค้าในตาราง (กรองที่หน้าเว็บ ไม่เรียก API) |
+| `SummaryTable` | `sortKey` | `SortKey` | เกณฑ์เรียงตาราง: `default` (รหัสหมวดตามที่ API ส่งมา), `name`, `buyKg`, `sellKg`, `remainingKg`, `buyBaht`, `sellBaht`, `remainingBaht` |
+| `SummaryTable` | `isDescending` | boolean | `true` = มาก→น้อย (ชื่อ: ฮ→ก) เปลี่ยนเกณฑ์แล้ว ตัวเลขเริ่มที่มาก→น้อย ชื่อเริ่มที่ ก→ฮ |
 | `SummaryTable` | `openOrderList` | `{ title, orderIds, tradeType } | null` | หน้าต่างเลขออเดอร์ที่เปิดอยู่ (`null` = ปิด) |
 | `OrderIdsModal` | `searchTerm`, `isCopied` | string, boolean | คำค้นในหน้าต่าง และสถานะ "คัดลอกแล้ว" |
 

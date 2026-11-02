@@ -166,12 +166,75 @@ function filterCategoriesByName(categories: CategorySummary[], searchText: strin
   });
 }
 
+// ตัวเลือกการเรียงตาราง ('default' = ตามรหัสหมวดที่ API ส่งมา)
+type SortKey = 'default' | 'name' | 'buyKg' | 'sellKg' | 'remainingKg' | 'buyBaht' | 'sellBaht' | 'remainingBaht';
+
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'default', label: 'รหัสหมวดหมู่' },
+  { key: 'name', label: 'ชื่อ' },
+  { key: 'buyKg', label: 'จำนวนซื้อ (กก.)' },
+  { key: 'sellKg', label: 'จำนวนขาย (กก.)' },
+  { key: 'remainingKg', label: 'คงเหลือ (กก.)' },
+  { key: 'buyBaht', label: 'ยอดซื้อ (บาท)' },
+  { key: 'sellBaht', label: 'ยอดขาย (บาท)' },
+  { key: 'remainingBaht', label: 'เงินคงเหลือ (บาท)' },
+];
+
+// ค่าตัวเลขที่ใช้เรียงของ 1 แถว ตามตัวเลือกที่เลือก
+function sortValue(row: SummaryRow, sortKey: SortKey): number {
+  switch (sortKey) {
+    case 'buyKg':
+      return row.buy.totalKg;
+    case 'sellKg':
+      return row.sell.totalKg;
+    case 'remainingKg':
+      return row.remaining.totalKg;
+    case 'buyBaht':
+      return row.buy.totalBaht;
+    case 'sellBaht':
+      return row.sell.totalBaht;
+    case 'remainingBaht':
+      return row.remaining.totalBaht;
+    default:
+      return 0;
+  }
+}
+
+// เรียงหมวดหมู่ และเรียงหมวดย่อยภายในแต่ละหมวดด้วยเกณฑ์เดียวกัน (หมวดย่อยไม่ย้ายข้ามหมวด)
+// เรียงบนข้อมูลที่โหลดมาแล้ว ไม่เรียก API ใหม่ และไม่แก้ array เดิม
+function sortCategories(categories: CategorySummary[], sortKey: SortKey, isDescending: boolean): CategorySummary[] {
+  if (sortKey === 'default') return categories;
+
+  const direction = isDescending ? -1 : 1;
+  const compare = (nameA: string, rowA: SummaryRow, nameB: string, rowB: SummaryRow) =>
+    sortKey === 'name'
+      ? nameA.localeCompare(nameB, 'th') * direction
+      : (sortValue(rowA, sortKey) - sortValue(rowB, sortKey)) * direction;
+
+  return [...categories]
+    .sort((categoryA, categoryB) => compare(categoryA.categoryName, categoryA, categoryB.categoryName, categoryB))
+    .map((category) => ({
+      ...category,
+      subCategories: [...category.subCategories].sort((subA, subB) =>
+        compare(subA.subCategoryName, subA, subB.subCategoryName, subB),
+      ),
+    }));
+}
+
 // ---------- ตารางหลัก ----------
 
 export default function SummaryTable({ data, isLoading }: Props) {
   const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<Set<string>>(new Set()); // เริ่มต้นขยายทุกหมวด
   const [openOrderList, setOpenOrderList] = useState<OpenOrderList | null>(null);
   const [tableSearch, setTableSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('default');
+  const [isDescending, setIsDescending] = useState(true); // true = มาก→น้อย (ชื่อ: ฮ→ก)
+
+  // เปลี่ยนเกณฑ์: ตัวเลขเริ่มที่มาก→น้อย ชื่อเริ่มที่ ก→ฮ
+  const changeSortKey = (nextSortKey: SortKey) => {
+    setSortKey(nextSortKey);
+    setIsDescending(nextSortKey !== 'name');
+  };
 
   const toggleCategory = (categoryId: string) =>
     setCollapsedCategoryIds((previous) => {
@@ -187,12 +250,12 @@ export default function SummaryTable({ data, isLoading }: Props) {
     setOpenOrderList({ title, orderIds, tradeType });
   const closeOrderList = useCallback(() => setOpenOrderList(null), []);
 
-  const visibleCategories = filterCategoriesByName(data.categories, tableSearch);
+  const visibleCategories = sortCategories(filterCategoriesByName(data.categories, tableSearch), sortKey, isDescending);
   const visibleSubCategoryCount = visibleCategories.reduce((sum, category) => sum + category.subCategories.length, 0);
 
   return (
     <div className="table-section-container">
-      {/* แถบควบคุมตาราง: จำนวนที่แสดง, ค้นหาในตาราง, พับ/ขยาย, ส่งออก CSV */}
+      {/* แถบควบคุมตาราง: จำนวนที่แสดง, ค้นหาในตาราง, เรียงลำดับ, พับ/ขยาย, ส่งออก CSV */}
       <div className="table-toolbar">
         <div className="toolbar-left">
           <div className="table-stat-badge">
@@ -224,6 +287,26 @@ export default function SummaryTable({ data, isLoading }: Props) {
         </div>
 
         <div className="toolbar-right">
+          <div className="table-sort">
+            <label htmlFor="table-sort-key">เรียงตาม</label>
+            <select id="table-sort-key" value={sortKey} onChange={(event) => changeSortKey(event.target.value as SortKey)}>
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="tool-btn"
+              onClick={() => setIsDescending((previous) => !previous)}
+              disabled={sortKey === 'default'}
+              title="สลับทิศทางการเรียง"
+            >
+              {sortKey === 'name' ? (isDescending ? 'ฮ → ก' : 'ก → ฮ') : isDescending ? 'มาก → น้อย' : 'น้อย → มาก'}
+            </button>
+          </div>
+
           <div className="accordion-toggle-group">
             <button type="button" className="tool-btn" onClick={expandAll} title="ขยายทุกหมวดหมู่">
               ขยายทั้งหมด
